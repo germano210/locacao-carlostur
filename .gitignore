@@ -1,0 +1,128 @@
+# =====================================================================
+# Carlos Tur · locacao-carlostur
+# Só o site público vai para o Git: index.html, painel.html, assets/,
+# README.md e este .gitignore. Todo o resto abaixo fica só na máquina.
+# =====================================================================
+
+# --- Segredos e credenciais -----------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+*.ppk
+secrets/
+credenciais/
+credentials*.json
+service-account*.json
+*-firebase-adminsdk-*.json
+.htpasswd
+.netrc
+.npmrc
+wp-config.php
+
+# --- Acesso a hospedagem / deploy (FTP, painel, DNS) ----------------
+.ftpconfig
+.vscode/sftp.json
+sftp-config.json
+ftp*.txt
+deploy*.txt
+acessos*.*
+senhas*.*
+
+# --- Dados da empresa e de clientes (nunca no Git) ------------------
+dados/
+privado/
+private/
+clientes/
+passageiros/
+orcamentos/
+contratos/
+financeiro/
+documentos/
+backup*/
+exports/
+*.csv
+*.xls
+*.xlsx
+*.ods
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+*.bak
+*.dump
+*cpf*
+*rg-*
+*cnh*
+*contrato*
+*orcamento*
+*passageiro*
+*lista-de-*
+
+# --- Arquivos de trabalho / originais pesados -----------------------
+originais/
+brutos/
+raw/
+*.psd
+*.ai
+*.fig
+*.xd
+*.sketch
+*.blend
+*.blend1
+*.prproj
+*.aep
+*.mov
+*.MOV
+*.HEIC
+*.heic
+*.CR2
+*.NEF
+*.ARW
+*.dng
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+_pacote.tar
+
+# --- Logs e temporários ---------------------------------------------
+*.log
+logs/
+tmp/
+temp/
+.cache/
+*.tmp
+*.swp
+*~
+
+# --- Sistema e editores ---------------------------------------------
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+._*
+.idea/
+.vscode/
+*.code-workspace
+
+# --- Ferramentas -----------------------------------------------------
+node_modules/
+dist/
+.vercel/
+.netlify/
+.claude/
+Claude outputs/
+_servidor.tgz
+_patch_front.py

@@ -1,0 +1,10 @@
+services:
+  carlostur:
+    build: .
+    container_name: carlostur
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./dados:/data          # banco, fotos e vídeos -> backup diário (backup.sh)
+    ports:
+      - "127.0.0.1:8002:8000"  # só local; o cloudflared publica carlostur.com.br -> http://localhost:8002
