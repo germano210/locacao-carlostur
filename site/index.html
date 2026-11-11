@@ -1940,14 +1940,11 @@ button, a, .opt { touch-action: manipulation; }
 
   <section class="blk" id="sPkgs" data-view="trip" aria-labelledby="pkTitle" hidden>
     <div class="pk-head">
-      <h2 class="sec-title" id="pkTitle">Roteiros prontos</h2>
-      <div class="seg" id="pkSeg" role="tablist" aria-label="Tipo de roteiro">
-        <button type="button" role="tab" data-k="grupo" aria-selected="true">Para o seu grupo</button>
-        <button type="button" role="tab" data-k="saida" aria-selected="false">Saídas com data</button>
-      </div>
+      <h2 class="sec-title" id="pkTitle">Ideias de roteiro para fretar</h2>
+      <p class="sec-sub">O ônibus é só do seu grupo: vocês escolhem a data, as paradas e o tempo em cada lugar.</p>
     </div>
     <div class="pk-list" id="pkList" tabindex="0" aria-label="Roteiros"></div>
-    <p class="ex-note" id="pkEx"><span class="tag-ex">Exemplo</span><span>Roteiros de referência; a Carlos Tur confirma datas e valores no WhatsApp.</span></p>
+    <p class="ex-note" id="pkEx"><span class="tag-ex">Exemplo</span><span>Ideias para inspirar. O grupo monta o roteiro e a Carlos Tur faz o orçamento do fretamento no WhatsApp.</span></p>
   </section>
 
   <section class="blk" id="sPhotos" data-view="close" aria-labelledby="photosTitle">
@@ -4731,15 +4728,15 @@ const SITE = {
   ],
   compareBoth: 'Nos dois: 46 lugares, WC a bordo e ar-condicionado.',
   // roteiros prontos (grupo = o grupo escolhe a data, sem preço no site; saida = data marcada e valor por pessoa, venda final)
-  vars: { roteiros: false, preco: false, emdia: false },   // 12f: emdia = bloco "Em dia" (revisão, motorista, viagens); escondido até a CarlosTur mandar os dados reais   // v12: variáveis do site âncora (escolhidas pela TLH, não pelo painel)
+  vars: { roteiros: true, preco: false, emdia: false },   // 12f: emdia = bloco "Em dia" (revisão, motorista, viagens); escondido até a CarlosTur mandar os dados reais   // v12: variáveis do site âncora (escolhidas pela TLH, não pelo painel)
   packages: [
     { ex: true, tipo: 'grupo', titulo: 'Gramado e Canela no mesmo dia', dest: 'Gramado', img: 'gramado', dias: 1, dur: 'Bate e volta', kind: 'serra', inclui: ['Rua Coberta e Lago Negro', 'Catedral de Pedra e Caracol', 'Paradas para café'] },
     { ex: true, tipo: 'grupo', titulo: 'Vinícolas do Vale dos Vinhedos', dest: 'Bento Gonçalves', img: 'bento', dias: 1, dur: '1 dia', kind: 'serra', inclui: ['2 vinícolas com degustação', 'Almoço típico italiano', 'Opção de Maria Fumaça'] },
     { ex: true, tipo: 'grupo', titulo: 'Cânions de Cambará do Sul', dest: 'Cambará do Sul', img: 'cambara', dias: 1, dur: '1 dia', kind: 'serra', inclui: ['Itaimbezinho e Fortaleza', 'Subida pela Rota do Sol', 'Guia local (opcional)'] },
     { ex: true, tipo: 'grupo', titulo: 'Excursão escolar em Porto Alegre', dest: 'Porto Alegre', img: 'poa', dias: 1, dur: 'Meio período ou dia', kind: 'cidade', inclui: ['Museu, planetário ou zoológico', 'Lista de passageiros pronta', 'Saída e volta na escola'] },
-    { ex: true, tipo: 'saida', titulo: 'Natal Luz em Gramado', dest: 'Gramado', img: 'gramado-natal', dur: '1 dia', kind: 'serra', data: '2026-11-21', preco: 149, vagas: 46, conf: 31, inclui: ['Saída 7h de Santo Antônio', 'Grande Desfile (ingresso à parte)', 'Volta no mesmo dia'] },
-    { ex: true, tipo: 'saida', titulo: 'Beto Carrero World', dest: 'Beto Carrero', img: 'beto', dur: '3 dias', kind: 'parque', data: '2027-01-15', preco: 489, vagas: 46, conf: 18, inclui: ['Ônibus leito ida e volta', '2 noites em Penha (opcional)', 'Parada em Florianópolis'] },
-    { ex: true, tipo: 'saida', titulo: 'Fim de semana em Torres', dest: 'Torres', img: 'torres', dur: '2 dias', kind: 'praia', data: '2027-02-06', preco: 219, vagas: 46, conf: 22, inclui: ['Guarita e Parque da Itapeva', 'Pousada a 200 m do mar', 'Saída sábado 6h'] }
+    { ex: true, tipo: 'grupo', titulo: 'Natal Luz em Gramado', dest: 'Gramado', img: 'gramado-natal', dur: 'Bate e volta', kind: 'serra', inclui: ['Cidade iluminada e desfiles', 'Ingressos dos shows à parte', 'Volta no mesmo dia'] },
+    { ex: true, tipo: 'grupo', titulo: 'Beto Carrero World', dest: 'Beto Carrero', img: 'beto', dur: '2 a 3 dias', kind: 'parque', inclui: ['Ônibus leito ida e volta', 'Pernoite em Penha (opcional)', 'Parada em Florianópolis'] },
+    { ex: true, tipo: 'grupo', titulo: 'Fim de semana em Torres', dest: 'Torres', img: 'torres', dur: '2 dias', kind: 'praia', inclui: ['Guarita e Parque da Itapeva', 'Pousada perto do mar (opcional)', 'Ônibus à disposição do grupo'] }
   ],
   // fotos dos destinos (assets/dest/<img>.webp) e créditos (quando a foto é de terceiros, com licença livre)
   destCredits: {"gramado": "Rua Coberta, Gramado: Leandro Neumann Ciuffo, CC BY 2.0 (Wikimedia Commons)", "bento": "Vale dos Vinhedos: Renato Soares/MTur Destinos, domínio público (Wikimedia Commons)", "cambara": "Cânion Itaimbezinho: Guilherme Nunes Serafina, CC BY-SA 4.0 (Wikimedia Commons)", "poa": "Porto Alegre: Ricardo Rmx, CC BY-SA 3.0 (Wikimedia Commons)", "gramado-natal": "Natal Luz, Gramado: Larissa Fraga, CC BY 3.0 (Wikimedia Commons)", "beto": "Beto Carrero World: HVL, CC BY 4.0 (Wikimedia Commons)", "torres": "Praia da Guarita, Torres: Leandro Kibisz, CC BY-SA 2.5 (Wikimedia Commons)"},
@@ -5831,14 +5828,12 @@ function renderPackages() {
   const distTo = p => { const f = RouteMap.find(p.dest); const c = f && RouteMap.ll(f.key); return c && dll ? hav(c, dll) : 9e9; };
   if (dll) list = list.slice().sort((x, y) => distTo(x) - distTo(y));
   PKX = dk && pkTab === 'grupo' && !list.some(p => distTo(p) < 15) ? [destPkg(dk)] : [];
-  if (dk && pkTab === 'saida') { PKX = destSaidas(dk); list = list.filter(p => distTo(p) <= 120); }   // v25: só as saídas que combinam com o trajeto
   if (dk && pkTab === 'grupo' && PKX.length && destInfo) PKX[0].inclui = routeLines(destInfo, 0).slice(0, 2).concat(PKX[0].inclui).slice(0, 4);
-  $('#pkTitle').textContent = dk ? `Roteiros para ${RouteMap.short(dk)}` : 'Roteiros prontos';
+  $('#pkTitle').textContent = dk ? `Ideias para ${RouteMap.short(dk)}` : 'Ideias de roteiro para fretar';
   const card = (p, attr) => {
     const r = RouteMap.find(p.dest), km = r && RouteMap.origin ? RouteMap.quick(r.key) : null;
     const date = p.data ? (() => { const [y, m, d] = p.data.split('-'); return `<span class="pk-date"><b>${d}</b>${MONTHS[+m - 1]}</span>`; })() : '';
-    const seats = p.vagas ? `<div class="pk-seats"><div class="bar"><i style="width:${Math.round(p.conf / p.vagas * 100)}%"></i></div><span><b>${p.conf}</b> confirmados · ${p.vagas - p.conf} vagas</span></div>` : '';
-    const price = p.preco ? `<div class="pk-price"><b>${p.est ? '≈ ' : ''}${brl(p.preco)}</b><span>por pessoa · ${esc(p.dur)}${p.est ? ` · só o ônibus, ${SITE.peopleDefault || 40} pessoas` : ''}</span></div>` : '';
+    // 11/11: só fretamento: sem preço por pessoa e sem vagas nos cartões
     const dnote = p.sugData ? '<small class="pk-dnote">data sugerida · combine no WhatsApp</small>' : p.approx ? '<small class="pk-dnote">data do evento a confirmar</small>' : '';
     const img = p.src ? `<img src="${esc(p.src)}" alt="" loading="lazy" decoding="async">` : p.img && SITE.destCredits && p.img in SITE.destCredits ? `<img src="assets/dest/${p.img}.webp" alt="" loading="lazy" decoding="async">` : '';
     const near = dll && !p.sug ? distTo(p) : null;
@@ -5847,15 +5842,15 @@ function renderPackages() {
       <div class="pk-body">
         <h3>${esc(p.titulo)}</h3>
         <ul>${p.inclui.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
-        ${dnote}${price}${seats}
-        <button class="pk-go" type="button" ${attr}>${p.tipo === 'saida' ? 'Reservar poltronas' : 'Pedir este roteiro'}</button>
+        ${dnote}
+        <button class="pk-go" type="button" ${attr}>Fretar este roteiro</button>
       </div>
     </article>`;
   };
   $('#pkList').innerHTML = PKX.map((p, i) => card(p, `data-pkx="${i}"`)).join('') + list.map(p => card(p, `data-pk="${SITE.packages.indexOf(p)}"`)).join('');
   $('#pkEx').hidden = !SITE.packages.some(p => p.ex);
 }
-$('#pkSeg').addEventListener('click', e => {
+$('#pkSeg') && $('#pkSeg').addEventListener('click', e => {
   const b = e.target.closest('[data-k]'); if (!b || b.dataset.k === pkTab) return;
   pkTab = b.dataset.k; $$('#pkSeg [data-k]').forEach(x => x.setAttribute('aria-selected', x === b ? 'true' : 'false'));
   renderPackages(); $('#pkList').scrollLeft = 0; track('pkg_tab', { tab: pkTab });
@@ -5864,8 +5859,8 @@ $('#pkList').addEventListener('click', e => {
   const b = e.target.closest('.pk-go'); if (!b) return;
   const p = b.dataset.pkx != null ? PKX[+b.dataset.pkx] : SITE.packages[+b.dataset.pk]; if (!p) return;
   track('pkg_open', { pkg: p.titulo, tipo: p.tipo });
-  const note = p.tipo === 'saida' ? `Saída de ${dmy(p.data)} · ${p.titulo}` : `Roteiro: ${p.titulo} (${p.dur})`;
-  Quote.open({ dest: p.dest, from: 'pacote', note, date: p.data || '', guided: true });
+  const note = `Ideia de roteiro: ${p.titulo} (${p.dur})`;
+  Quote.open({ dest: p.dest, from: 'pacote', note, date: '', guided: true });
 });
 
 /* ============================ o ônibus em dia ============================ */

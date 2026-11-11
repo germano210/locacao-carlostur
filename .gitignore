@@ -126,3 +126,5 @@ dist/
 Claude outputs/
 _servidor.tgz
 _patch_front.py
+_patch_roteiros.py
+_antigo/

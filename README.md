@@ -8,7 +8,7 @@ Um container serve tudo: o site (`site/`), a API (`/api/...`) e o painel (`/pain
 | `site/` | Front: `index.html`, `painel.html`, `privacidade.html`, `termos.html`, `fonts/`, `assets/` |
 | `app/app.py` | Servidor FastAPI (login, painel, fotos, vídeo, cliques anônimos, limpeza LGPD) |
 | `app/testes/` | Testes automáticos (`cd app && python -m pytest -q testes`) |
-| `CONTEXTO.md` | Decisões e tarefas (kanban) · `PUBLICAR.md` checklist LGPD · `TESTE.md` roteiro de aceite |
+| `../CONTEXTO-projeto-carlostur.md` (contexto central) | Decisões e tarefas (kanban) · `PUBLICAR.md` checklist LGPD · `TESTE.md` roteiro de aceite |
 
 ## Rodar no seu computador
 ```bash
