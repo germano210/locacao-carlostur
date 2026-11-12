@@ -1,7 +1,7 @@
 """Carlos Tur · carlostur.com.br
 
 Um app serve tudo: o site (pasta site/), a API (/api/...) e o painel (/painel).
-Banco SQLite e mídia em CT_DATA (padrão ./dados, no Docker /data). Ver CONTEXTO.md para as tarefas.
+Banco SQLite e mídia em CT_DATA (padrão ./dados, no Docker /data). Contexto e tarefas: D:\trabalhos\CONTEXTO-projeto-carlostur.md.
 
 Rodar local:   cd app && CT_HTTPS=0 uvicorn app:app --port 8002   ->  http://localhost:8002/
 Criar acesso:  python app.py usuario email@exemplo.com "Nome"      (mostra a senha temporária)
