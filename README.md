@@ -28,9 +28,8 @@ Sem servidor (`cd site && python -m http.server`) o painel volta ao modo protót
    - Ver acessos: `docker compose exec carlostur python app.py usuarios`
 
 ## Cloudflare (o domínio já está lá; não precisa de Worker)
-1. **Túnel (na conta do Cloudflare que tem o carlostur.com.br; o do Erivelto é de outra conta):** Zero Trust → Networks → Tunnels → Create → Cloudflared → copiar o token. Duas formas:
-   - **Padrão (túnel à parte):** `docker run -d --name cloudflared-carlostur --restart unless-stopped --network host cloudflare/cloudflared:latest tunnel --no-autoupdate run --token TOKEN`; Public Hostname `carlostur.com.br` e `www` → HTTP → `localhost:8002`. O `docker compose up -d --build` só mexe no app.
-   - **Pelo compose:** `docker rm -f cloudflared-carlostur`, token em `CF_TUNNEL_TOKEN` no `.env`, `docker compose --profile tunel up -d`; Public Hostname → `carlostur:8000`.
+1. **Túnel (na conta do Cloudflare que tem o carlostur.com.br; o do Erivelto é de outra conta):** Zero Trust → Networks → Tunnels → Create → Cloudflared → copiar só o token para `CF_TUNNEL_TOKEN` no `.env`. O `docker compose up -d` já sobe o túnel (serviço `cloudflared`) na mesma rede do app.
+   - *Public hostname*: `carlostur.com.br` e `www.carlostur.com.br` → tipo HTTP → `carlostur:8000` (nome do serviço, **não** `localhost`: dentro do container do túnel, localhost é ele mesmo).
 2. **SSL/TLS:** modo *Full (strict)*; *Always Use HTTPS* ligado; HSTS ligado (o app também manda o cabeçalho).
 3. **Access (proteção extra do painel):** Zero Trust → Access → Applications → *Self-hosted*:
    - `teste.carlostur.com.br` inteiro (só durante o ensaio) e `carlostur.com.br/painel*` (sempre).

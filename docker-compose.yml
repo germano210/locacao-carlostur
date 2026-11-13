@@ -9,13 +9,9 @@ services:
     ports:
       - "127.0.0.1:8002:8000"  # só local (curl /saude, testes); a internet chega pelo túnel abaixo
 
-  # Túnel do Cloudflare da conta do carlostur.com.br — OPCIONAL (perfil "tunel").
-  # Padrão: o túnel roda à parte (docker run --network host ... ; Public Hostname -> localhost:8002)
-  # e o "docker compose up -d --build" só reconstrói o app, sem tocar no túnel.
-  # Para o compose cuidar do túnel: docker rm -f cloudflared-carlostur, token em CF_TUNNEL_TOKEN,
-  # "docker compose --profile tunel up -d" e Public Hostname -> http://carlostur:8000.
+  # Túnel do Cloudflare da conta do carlostur.com.br. Fica na mesma rede do app:
+  # no painel do túnel, o Public Hostname aponta para  http://carlostur:8000  (não localhost).
   cloudflared:
-    profiles: ["tunel"]
     image: cloudflare/cloudflared:latest
     container_name: cloudflared-carlostur
     restart: unless-stopped
