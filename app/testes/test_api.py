@@ -139,3 +139,13 @@ def test_sair_e_cabecalhos():
     assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
     assert cliente().get("/painel").headers["x-robots-tag"].startswith("noindex")
     assert "Disallow: /painel" in cliente().get("/robots.txt").text
+
+
+def test_registro_marco_civil():
+    A.ex("delete from registros")
+    c = cliente()
+    c.get("/", headers={"CF-Connecting-IP": "203.0.113.7"})
+    c.get("/assets/map/vec23.json", headers={"CF-Connecting-IP": "203.0.113.7"})
+    c.post("/api/evento", json={"tipo": "wa", "destino": "Torres"}, headers={"CF-Connecting-IP": "203.0.113.7"})
+    rows = A.q("select ip,caminho from registros")
+    assert [(r["ip"], r["caminho"]) for r in rows] == [("203.0.113.7", "/")]

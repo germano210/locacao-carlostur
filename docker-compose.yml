@@ -7,4 +7,16 @@ services:
     volumes:
       - ./dados:/data          # banco, fotos e vídeos -> backup diário (backup.sh)
     ports:
-      - "127.0.0.1:8002:8000"  # só local; o cloudflared publica carlostur.com.br -> http://localhost:8002
+      - "127.0.0.1:8002:8000"  # só local (curl /saude, testes); a internet chega pelo túnel abaixo
+
+  # Túnel do Cloudflare da conta do carlostur.com.br. Fica na mesma rede do app:
+  # no painel do túnel, o Public Hostname aponta para  http://carlostur:8000  (não localhost).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-carlostur
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}   # vem do .env (fora do Git)
+    depends_on:
+      - carlostur
