@@ -4760,7 +4760,14 @@ const T0 = performance.now();
 // 11/11: no protótipo (site e painel no mesmo endereço), o site segue a ordem e as exclusões publicadas no painel.
 // No servidor, isto vem da API; aqui vem do navegador. Veículo novo só entra no cenário com as imagens dele (E43).
 (() => { try {
-  const P = window.CT_PUB !== undefined ? window.CT_PUB : JSON.parse(localStorage.getItem('ct-painel-v1') || 'null');   // T17: no servidor vem de api/site.js if (!P || !Array.isArray(P.frota)) return;
+  const P = window.CT_PUB !== undefined ? window.CT_PUB : JSON.parse(localStorage.getItem('ct-painel-v1') || 'null');
+  if (!P || !Array.isArray(P.frota)) return;   // T17: no servidor vem de api/site.js
+  // 13/11: WhatsApp e ano publicados no painel (Configurações → Empresa). Nome e logo seguem com a TLH.
+  if (P.empresa && typeof P.empresa === 'object') {
+    const d = String(P.empresa.wa || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+    if (d.length === 10 || d.length === 11) { SITE.whatsapp = '55' + d; SITE.whatsappLabel = `(${d.slice(0, 2)}) ${d.slice(2, -4)}-${d.slice(-4)}`; }
+    const y = parseInt(P.empresa.desde, 10); if (y > 1900 && y <= new Date().getFullYear()) SITE.since = y;
+  }
   const pubIds = P.frota.filter(v => v && v.pub).map(v => v.id), ord = (P.ordemPub || pubIds).filter(id => pubIds.includes(id));
   const keep = SITE.fleet.filter(b => pubIds.includes(b.id)); if (!keep.length) return;
   keep.sort((a, b) => { const ia = ord.indexOf(a.id), ib = ord.indexOf(b.id); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });

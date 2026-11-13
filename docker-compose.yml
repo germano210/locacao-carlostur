@@ -9,8 +9,9 @@ services:
     ports:
       - "127.0.0.1:8002:8000"  # só local (curl /saude, testes); a internet chega pelo túnel abaixo
 
-  # Túnel do Cloudflare da conta do carlostur.com.br. Fica na mesma rede do app:
-  # no painel do túnel, o Public Hostname aponta para  http://carlostur:8000  (não localhost).
+  # Túnel do Cloudflare da conta do carlostur.com.br, na mesma rede do app.
+  # No painel do túnel, o Public Hostname aponta para  http://carlostur:8000  (NÃO localhost:
+  # dentro deste container, localhost é ele mesmo). Rebuild do app não recria o túnel.
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared-carlostur
