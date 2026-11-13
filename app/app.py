@@ -7,6 +7,7 @@ Rodar local:   cd app && CT_HTTPS=0 uvicorn app:app --port 8002   ->  http://loc
 Criar acesso:  python app.py usuario email@exemplo.com "Nome"      (mostra a senha temporária)
 Senha nova:    python app.py senha email@exemplo.com                (gera outra senha temporária)
 Listar:        python app.py usuarios
+Registros:     python app.py registros 2026-11-01 2026-11-30 [ip]  (Marco Civil, só com ordem judicial)
 """
 import base64, hashlib, hmac, io, json, os, pathlib, re, secrets, sqlite3, sys, threading, time
 
@@ -58,6 +59,9 @@ create table if not exists tentativas(chave text primary key, n integer not null
 create table if not exists aceites(
   id integer primary key, usuario_id integer not null references usuarios(id) on delete cascade,
   versao text not null, ip text, criado real);
+create table if not exists registros(
+  id integer primary key, ip text, metodo text, caminho text, status integer, criado real);  -- Marco Civil art. 15: 6 meses, sigilo
+create index if not exists ix_registros_criado on registros(criado);
 create table if not exists sugestoes(id integer primary key, usuario_id integer, texto text not null, criado real);
 create index if not exists ix_eventos_criado on eventos(criado);
 create index if not exists ix_acessos_criado on acessos(criado);
@@ -238,7 +242,23 @@ async def guarda(request: Request, call_next):
     if p.startswith("/api/") or p.startswith("/painel"):
         h["X-Robots-Tag"] = "noindex, nofollow"
         h["Cache-Control"] = "no-store"
+    if registrar(p):
+        try:
+            ex("insert into registros(ip,metodo,caminho,status,criado) values(?,?,?,?,?)",
+               ip_de(request), request.method, p[:200], r.status_code, time.time())
+        except Exception as e:
+            print("registro de acesso falhou:", e, file=sys.stderr)
     return r
+
+
+# Marco Civil (Lei 12.965/2014, art. 15): guardar por 6 meses data, hora e IP do uso da aplicação, em sigilo.
+# Só páginas e API; arquivos estáticos não. /api/evento fica de fora para o clique continuar anônimo.
+NAO_REGISTRA = ("/assets/", "/fonts/", "/midia/", "/api/evento", "/saude", "/api/site.js")
+EXT_ESTATICA = (".webp", ".jpg", ".jpeg", ".png", ".svg", ".ico", ".css", ".js", ".json", ".woff2", ".mp4", ".webm", ".txt")
+
+
+def registrar(p: str) -> bool:
+    return not p.startswith(NAO_REGISTRA) and not p.lower().endswith(EXT_ESTATICA)
 
 
 def logado(req: Request, completo=True):
@@ -569,6 +589,7 @@ def limpeza():
     agora = time.time()
     ex("delete from eventos where criado < ?", agora - 365 * 86400)    # cliques: 12 meses
     ex("delete from acessos where criado < ?", agora - 183 * 86400)    # registros de acesso: 6 meses
+    ex("delete from registros where criado < ?", agora - 183 * 86400)  # Marco Civil: 6 meses
     ex("delete from sessoes where expira < ?", agora)
     ex("delete from tentativas where (ate is null or ate < ?) and n = 0", agora)
     for f in TMP.glob("*"):                                             # envios de vídeo largados no meio
@@ -617,6 +638,16 @@ def _cli(a):
     elif a == ["usuarios"]:
         for r in q("select login,nome,papel,temp from usuarios order by id"):
             print(f"{r['login']:<40} {r['papel']:<8} {'senha temporária' if r['temp'] else 'ok'}  {r['nome'] or ''}")
+    elif len(a) >= 3 and a[0] == "registros":
+        # Para ordem judicial: python app.py registros 2026-11-01 2026-11-30 [ip]  -> CSV na tela
+        import csv, datetime as dt
+        de = dt.datetime.fromisoformat(a[1]).timestamp(); ate = dt.datetime.fromisoformat(a[2]).timestamp() + 86400
+        sql, par = "select criado,ip,metodo,caminho,status from registros where criado>=? and criado<?", [de, ate]
+        if len(a) > 3:
+            sql += " and ip=?"; par.append(a[3])
+        w = csv.writer(sys.stdout); w.writerow(["data_hora_utc", "ip", "metodo", "caminho", "status"])
+        for r in q(sql + " order by criado", *par):
+            w.writerow([dt.datetime.utcfromtimestamp(r["criado"]).isoformat(timespec="seconds"), r["ip"], r["metodo"], r["caminho"], r["status"]])
     elif a == ["limpar"]:
         limpeza(); print("Limpeza feita.")
     else:

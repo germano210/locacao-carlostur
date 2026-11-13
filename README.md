@@ -23,14 +23,14 @@ Sem servidor (`cd site && python -m http.server`) o painel volta ao modo protót
 2. `cp .env.example .env` e ajustar `CT_ORIGENS` (inclua `https://teste.carlostur.com.br` enquanto ele existir).
 3. `mkdir -p dados && sudo chown -R 1000:1000 dados` (o container roda como usuário 1000, sem root).
 4. `docker compose up -d --build` → `curl -s localhost:8002/saude` deve responder `{"ok":true,...}`.
-5. Criar o acesso do Carlos: `docker compose exec carlostur python app.py usuario email@do.carlos "Carlos"`. Mande a senha temporária a ele por um canal privado; na 1ª entrada o painel pede uma senha nova (10+ caracteres) e o aceite do termo.
+5. Criar o acesso do Carlos (de qualquer pasta): `docker exec -it carlostur python app.py usuario email@do.carlos "Carlos"`. Com `docker compose exec`, rode de dentro da pasta do projeto (senão dá *no configuration file provided*). Mande a senha temporária a ele por um canal privado; na 1ª entrada o painel pede uma senha nova (10+ caracteres) e o aceite do termo.
    - Senha esquecida: `docker compose exec carlostur python app.py senha email@do.carlos`
    - Ver acessos: `docker compose exec carlostur python app.py usuarios`
 
 ## Cloudflare (o domínio já está lá; não precisa de Worker)
-1. **Túnel:** Zero Trust → Networks → Tunnels → no túnel que já roda no servidor, *Public hostname*:
-   - Ensaio: `teste.carlostur.com.br` → `http://localhost:8002`
-   - No dia de publicar: `carlostur.com.br` e `www.carlostur.com.br` → `http://localhost:8002`
+1. **Túnel (na conta do Cloudflare que tem o carlostur.com.br; o do Erivelto é de outra conta):** Zero Trust → Networks → Tunnels → Create → Cloudflared → copiar o token. Duas formas:
+   - **Padrão (túnel à parte):** `docker run -d --name cloudflared-carlostur --restart unless-stopped --network host cloudflare/cloudflared:latest tunnel --no-autoupdate run --token TOKEN`; Public Hostname `carlostur.com.br` e `www` → HTTP → `localhost:8002`. O `docker compose up -d --build` só mexe no app.
+   - **Pelo compose:** `docker rm -f cloudflared-carlostur`, token em `CF_TUNNEL_TOKEN` no `.env`, `docker compose --profile tunel up -d`; Public Hostname → `carlostur:8000`.
 2. **SSL/TLS:** modo *Full (strict)*; *Always Use HTTPS* ligado; HSTS ligado (o app também manda o cabeçalho).
 3. **Access (proteção extra do painel):** Zero Trust → Access → Applications → *Self-hosted*:
    - `teste.carlostur.com.br` inteiro (só durante o ensaio) e `carlostur.com.br/painel*` (sempre).
