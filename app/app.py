@@ -25,6 +25,7 @@ for d in (DATA, MIDIA, TMP):
     d.mkdir(parents=True, exist_ok=True)
 HTTPS = E("CT_HTTPS", "1") == "1"            # 0 só em teste local sem https (HSTS e cookie Secure)
 ORIGENS = {o.strip().rstrip("/") for o in E("CT_ORIGENS", "https://carlostur.com.br,https://www.carlostur.com.br").split(",") if o.strip()}
+TUNEL_TESTE = E("CT_TUNEL_TESTE", "0") == "1"   # compose.teste.yaml: aceita o link aleatório *.trycloudflare.com
 SESSAO_H = 12                                 # horas sem uso até a sessão expirar
 ACEITE_VERSAO = E("CT_ACEITE_VERSAO", "2026-11-11")
 FOTO_MAX = 15 * 2**20; VIDEO_MAX = 300 * 2**20; PARTE_MAX = 50 * 2**20; ESTADO_MAX = 2 * 2**20
@@ -245,7 +246,7 @@ async def guarda(request: Request, call_next):
     if p.startswith("/api/") and request.method not in ("GET", "HEAD", "OPTIONS"):
         org = (request.headers.get("origin") or "").rstrip("/")
         proprio = f"{request.url.scheme}://{request.headers.get('host', '')}"
-        if org and org != proprio and org not in ORIGENS:
+        if org and org != proprio and org not in ORIGENS and not (TUNEL_TESTE and re.fullmatch(r"https://[a-z0-9-]+\.trycloudflare\.com", org)):
             return erro("Origem não permitida.", 403)
         if p not in LIVRES_CSRF:
             c = request.cookies.get("ct_c") or ""

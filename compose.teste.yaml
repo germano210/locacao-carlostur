@@ -1,0 +1,27 @@
+# Instância de TESTE na sua máquina, separada do site no ar:
+#   docker compose -f compose.teste.yaml up -d --build
+#   docker compose -f compose.teste.yaml logs tunel | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com'
+#   docker exec -it carlostur-teste python app.py usuario voce@exemplo.com "Teste" --tlh
+# Banco e fotos próprios em ./dados-teste (fora do Git). O link aleatório muda a cada vez que o túnel reinicia.
+# Também abre direto em http://localhost:8012
+name: carlostur-teste
+services:
+  carlostur:
+    build: .
+    container_name: carlostur-teste
+    restart: "no"
+    environment:
+      CT_HTTPS: "1"
+      CT_TUNEL_TESTE: "1"                 # aceita https://*.trycloudflare.com no painel
+      CT_ORIGENS: "http://localhost:8012"
+    volumes:
+      - ./dados-teste:/data
+    ports:
+      - "127.0.0.1:8012:8000"
+  tunel:
+    image: cloudflare/cloudflared:2026.10.7
+    container_name: carlostur-teste-tunel
+    restart: "no"
+    command: tunnel --no-autoupdate --url http://carlostur:8000   # túnel rápido: sem conta, sem token
+    depends_on:
+      - carlostur
