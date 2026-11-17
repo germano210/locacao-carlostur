@@ -42,7 +42,7 @@ Sem servidor (`cd site && python -m http.server`) o painel volta ao modo protót
 1. `sudo apt install age` e, **fora do servidor**, `age-keygen -o chave-carlostur.txt` (guarde bem; a linha `public key:` vai no `.env` em `CT_BACKUP_CHAVE`).
 2. `CT_BACKUP_DESTINO` num disco/pasta que não seja o mesmo dos dados (ou sincronize com rclone).
 3. Cron: `10 3 * * * cd /caminho/locacao-carlostur && ./backup.sh >> dados/backup.log 2>&1`
-4. Teste de restauração uma vez: `age -d -i chave-carlostur.txt carlostur-AAAA.tar.age | tar -t`.
+4. Restaurar (testar uma vez assim que ligar o backup): `./restaurar.sh carlostur-AAAA-MM-DD_HHMM.tar.age chave-carlostur.txt` — restaura numa pasta nova, confere o banco e mostra os comandos para pôr no ar.
 
 ## Atualizar
 `git pull && docker compose up -d --build`. O banco e a mídia ficam em `dados/` e não são tocados.
