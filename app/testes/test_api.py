@@ -149,3 +149,18 @@ def test_registro_marco_civil():
     c.post("/api/evento", json={"tipo": "wa", "destino": "Torres"}, headers={"CF-Connecting-IP": "203.0.113.7"})
     rows = A.q("select ip,caminho from registros")
     assert [(r["ip"], r["caminho"]) for r in rows] == [("203.0.113.7", "/")]
+
+
+def test_ano_sitemap_e_cli(capsys):
+    c = pronto()
+    assert "desde 2000" in cliente().get("/").text and "desde 2001" not in cliente().get("/").text
+    v = c.get("/api/painel").json()["versao"]
+    D = {"frota": [], "empresa": {"pub": {"desde": "1998", "wa": "(51) 99797-6191"}}}
+    assert c.put("/api/painel", json={"dados": D, "versao": v}, headers=h(c)).status_code == 200
+    assert "desde 1998" in cliente().get("/").text
+    sm = cliente().get("/sitemap.xml")
+    assert sm.headers["content-type"].startswith("application/xml") and "/termos.html</loc>" in sm.text
+    assert "Sitemap: " in cliente().get("/robots.txt").text
+    assert c.post("/api/sugestao", json={"texto": "Mostrar as viagens do mês"}, headers=h(c)).status_code == 200
+    A._cli(["sugestoes"]); A._cli(["videos"])
+    assert "Mostrar as viagens do mês" in capsys.readouterr().out

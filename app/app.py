@@ -7,12 +7,13 @@ Rodar local:   cd app && CT_HTTPS=0 uvicorn app:app --port 8002   ->  http://loc
 Criar acesso:  python app.py usuario email@exemplo.com "Nome"      (mostra a senha temporária)
 Senha nova:    python app.py senha email@exemplo.com                (gera outra senha temporária)
 Listar:        python app.py usuarios
+Sugestões:     python app.py sugestoes   ·   Vídeos recebidos: python app.py videos
 Registros:     python app.py registros 2026-11-01 2026-11-30 [ip]  (Marco Civil, só com ordem judicial)
 """
 import base64, hashlib, hmac, io, json, os, pathlib, re, secrets, sqlite3, sys, threading, time
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 E = lambda k, d=None: os.environ.get(k) or d  # variável vazia = padrão
@@ -277,9 +278,44 @@ def saude():
     return {"ok": True, "t": int(time.time())}
 
 
+URL_SITE = E("CT_URL", "https://carlostur.com.br").rstrip("/")
+
+
 @app.get("/robots.txt")
 def robots():
-    return PlainTextResponse("User-agent: *\nDisallow: /painel\nDisallow: /api/\n")
+    return PlainTextResponse(f"User-agent: *\nDisallow: /painel\nDisallow: /api/\nSitemap: {URL_SITE}/sitemap.xml\n")
+
+
+@app.get("/sitemap.xml")
+def sitemap():  # T29
+    urls = "".join(f"<url><loc>{URL_SITE}{u}</loc></url>" for u in ("/", "/privacidade.html", "/termos.html"))
+    return Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                    + urls + "</urlset>", media_type="application/xml")
+
+
+# T27: o ano "desde" vem do painel (Configurações → Empresa → publicar) também no HTML que o WhatsApp e o Google leem
+_IDX = {"m": 0.0, "t": ""}
+ANO_PADRAO = int(E("CT_ANO_PADRAO", "2000"))
+
+
+def ano_publicado() -> int:
+    try:
+        a = int(str((((estado()[0] or {}).get("empresa") or {}).get("pub") or {}).get("desde") or "").strip())
+        if 1900 < a <= time.gmtime().tm_year:
+            return a
+    except (ValueError, TypeError):
+        pass
+    return ANO_PADRAO
+
+
+@app.api_route("/", methods=["GET", "HEAD"])
+@app.api_route("/index.html", methods=["GET", "HEAD"])
+def inicio():
+    f = SITE / "index.html"
+    m = f.stat().st_mtime
+    if _IDX["m"] != m:
+        _IDX.update(m=m, t=f.read_text(encoding="utf-8"))
+    return HTMLResponse(_IDX["t"].replace("desde 2001", f"desde {ano_publicado()}"))
 
 
 @app.api_route("/painel", methods=["GET", "HEAD"])
@@ -648,6 +684,13 @@ def _cli(a):
         w = csv.writer(sys.stdout); w.writerow(["data_hora_utc", "ip", "metodo", "caminho", "status"])
         for r in q(sql + " order by criado", *par):
             w.writerow([dt.datetime.utcfromtimestamp(r["criado"]).isoformat(timespec="seconds"), r["ip"], r["metodo"], r["caminho"], r["status"]])
+    elif a == ["sugestoes"]:  # T30
+        for r in q("select s.criado,s.texto,u.login from sugestoes s left join usuarios u on u.id=s.usuario_id order by s.criado desc"):
+            print(time.strftime("%d/%m/%Y %H:%M", time.localtime(r["criado"])), "·", r["login"] or "?", "\n   ", r["texto"])
+    elif a == ["videos"]:  # T30
+        for r in q("select m.criado,m.arquivo,m.bytes,u.login from midia m left join usuarios u on u.id=m.por where m.tipo='video' order by m.criado desc"):
+            print(time.strftime("%d/%m/%Y %H:%M", time.localtime(r["criado"])), "·", f"{(r['bytes'] or 0) / 2**20:.0f} MB", "·",
+                  r["login"] or "?", "·", DATA / r["arquivo"])
     elif a == ["limpar"]:
         limpeza(); print("Limpeza feita.")
     else:

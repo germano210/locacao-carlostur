@@ -13,7 +13,7 @@ services:
   # No painel do túnel, o Public Hostname aponta para  http://carlostur:8000  (NÃO localhost:
   # dentro deste container, localhost é ele mesmo). Rebuild do app não recria o túnel.
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.10.7   # versão fixa (T42); para atualizar: troque o número e rode docker compose up -d
     container_name: cloudflared-carlostur
     restart: unless-stopped
     command: tunnel --no-autoupdate run
