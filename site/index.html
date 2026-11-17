@@ -1804,6 +1804,35 @@ button, a, .opt { touch-action: manipulation; }
 .dc-at li.ph { align-items: flex-start; }
 .dc-atph { flex: none; width: 64px; height: 64px; object-fit: cover; border-radius: 12px; }
 </style>
+<script>
+/* Modo leve (17/11): aparelho fraco não carrega o cenário 3D nem o vídeo do topo. */
+window.CT_LEVE = (() => {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.has('completo')) { localStorage.setItem('ct-leve', '0'); return false; }
+    if (q.has('leve')) { localStorage.setItem('ct-leve', '1'); return true; }
+    const m = localStorage.getItem('ct-leve'); if (m === '1') return true; if (m === '0') return false;
+  } catch (e) { /* sem armazenamento */ }
+  const n = navigator, c = n.connection || {};
+  if ((n.deviceMemory || 8) <= 2 || (n.hardwareConcurrency || 8) <= 2 || c.saveData) return true;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
+  try {
+    const g = document.createElement('canvas').getContext('webgl2'); if (!g) return true;
+    const d = g.getExtension('WEBGL_debug_renderer_info'), r = d ? String(g.getParameter(d.UNMASKED_RENDERER_WEBGL)) : '';
+    const x = g.getExtension('WEBGL_lose_context'); if (x) x.loseContext();
+    if (/swiftshader|llvmpipe|software|basic render|gma/i.test(r)) return true;   // GPU por software ou muito antiga
+  } catch (e) { return true; }
+  return false;
+})();
+if (window.CT_LEVE) document.documentElement.classList.add('leve');
+</script>
+<style>
+html.leve * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html.leve .scene-ph { filter: none !important; transform: none !important; }
+html.leve .glass { background: rgba(8, 20, 40, .45) !important; }
+html.leve .ld-text, html.leve .tut { background: rgba(8, 20, 40, .88) !important; }
+</style>
+<style>.wm-img{width:auto!important;height:auto;max-height:46px;max-width:clamp(132px,38vw,210px);object-fit:contain}</style>
 </head>
 <body>
 <script>document.documentElement.classList.add('intro');try{history.scrollRestoration='manual'}catch(e){}</script>
@@ -3793,7 +3822,7 @@ const World = (() => {
     v.style.left = (-(c.x0 + SET.LXL) * c.s).toFixed(1) + 'px'; v.style.top = (-c.y0 * c.s).toFixed(1) + 'px';
   }
   function placeStatic(el, img, id) {
-    el.style.backgroundImage = `url('${base || 'assets/'}scene3/${SET.photo}.webp')`;
+    el.style.backgroundImage = `url('${base || 'assets/'}scene3/${(window.CT_LEVE && SET.lo) || SET.photo}.webp')`;
     const c = place(el), B = BUSES[id] || BUSES[Object.keys(BUSES)[0]];
     if (!img) return;
     img.src = (base || 'assets/') + 'scene3/' + B.file + '-spr.webp';
@@ -4784,6 +4813,30 @@ const T0 = performance.now();
   const pubIds = P.frota.filter(v => v && v.pub).map(v => v.id), ord = (P.ordemPub || pubIds).filter(id => pubIds.includes(id));
   const keep = SITE.fleet.filter(b => pubIds.includes(b.id)); if (!keep.length) return;
   keep.sort((a, b) => { const ia = ord.indexOf(a.id), ib = ord.indexOf(b.id); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+  // T38: o que o Carlos publica no painel (nome, lugares, poltrona, fotos) vale no site; o cenário 3D segue o da TLH
+  const POLN = { leito: 'leito', semi: 'semi-leito', exec: 'executivo', conv: 'convencional' };
+  const TIPN = { dd: 'dois andares', micro: 'micro-ônibus', van: 'van' };
+  keep.forEach(b => {
+    const v = P.frota.find(x => x && x.id === b.id) || {};
+    const d = v.dados || (v.pub && typeof v.pub === 'object' ? v.pub : null);
+    if (!d) return;
+    const nome = String(d.nome || '').trim();
+    if (nome) { b.name = nome; b.tab = nome.length > 22 ? nome.slice(0, 21) + '…' : nome; b.short = nome.length > 14 ? (b.short || nome.slice(0, 13) + '…') : nome; }
+    const n = parseInt(d.lugares, 10);
+    if (n > 0 && n < 200) { b.seats = n; b.sub = [`${n} lugares${POLN[d.pol] ? ' ' + POLN[d.pol] : ''}`, TIPN[d.tipo]].filter(Boolean).join(' · ');
+      const pl = POLN[d.pol] ? ' ' + POLN[d.pol] : '';
+      (b.chips || []).forEach(c => { if (c[0] === 'seat') c[1] = `${n} lugares${pl}`; });
+      (b.groups || []).forEach(g => (g.items || []).forEach(it => { if (it[0] === 'seat') it[1] = `${n} poltronas${pl}`; })); }
+    const fotos = (d.fotos || []).map(f => {
+      const m = /^assets\/([A-Za-z0-9_\/-]+)\.webp$/.exec(f.s || ''), k = /^\/midia\/([A-Za-z0-9_-]+)\.webp$/.exec(f.s || '');
+      const img = m ? m[1] : k ? '../midia/' + k[1] : null;   // as telas montam assets/<img>.webp
+      return img ? [img, String(f.l || nome || b.name), ''] : null;
+    }).filter(Boolean);
+    if (fotos.length) b.photos = fotos;
+  });
+  // T41: logo nova só depois que a TLH aprova na fila /tlh
+  const lg = P.empresa && /^\/midia\/[A-Za-z0-9_-]+\.webp$/.test(P.empresa.logo || '') ? P.empresa.logo : '';
+  if (lg) { const w = document.querySelector('.wordmark'); if (w) { const im = new Image(); im.src = lg; im.alt = ''; im.className = 'wordmark wm-img'; w.replaceWith(im); } }
   SITE.fleet = keep;
   if (P.disp && typeof P.disp === 'object') SITE.disp = P.disp;   // 12t (E57 A): disponibilidade marcada no painel (sem dado, nada aparece)
 } catch (e) {} })();
@@ -4894,7 +4947,7 @@ function fillStatic() {
     <div><dt>Garagem</dt><dd>${esc(co.endereco)}</dd></div><div><dt>ANTT</dt><dd>${esc(SITE.antt)}</dd></div>
     <div><dt>WhatsApp</dt><dd>${esc(SITE.whatsappLabel)}</dd></div><div><dt>Instagram</dt><dd>@${esc(ig)}</dd></div></dl>
     ${credits.length ? `<p class="credits">Fotos dos destinos: ${credits.map(esc).join(' · ')}.</p>` : ''}`;
-  $('#foot').innerHTML = `<span>© ${new Date().getFullYear()} ${esc(SITE.brand.name)}</span><span>CNPJ ${esc(co.cnpj)}</span><span>ANTT ${esc(SITE.antt)}</span>${SITE.cadastur ? `<span>Cadastur ${esc(SITE.cadastur)}</span>` : ''}<a href="privacidade.html">Privacidade</a><a href="termos.html">Termos de uso</a>`;
+  $('#foot').innerHTML = `<span>© ${new Date().getFullYear()} ${esc(SITE.brand.name)}</span><span>CNPJ ${esc(co.cnpj)}</span><span>ANTT ${esc(SITE.antt)}</span>${SITE.cadastur ? `<span>Cadastur ${esc(SITE.cadastur)}</span>` : ''}<a href="privacidade.html">Privacidade</a>${window.CT_LEVE ? '<a href="?completo">Versão completa</a>' : '<a href="?leve">Versão leve</a>'}<a href="termos.html">Termos de uso</a>`;
   renderHero(); renderPhotos(); renderPackages(); renderOps();
 }
 function renderHero() {
@@ -5905,14 +5958,14 @@ function renderOps() {
 /* ============================ fotos reais ============================ */
 function renderPhotos() {
   $('#photosBus').textContent = current.short;
-  $('#gallery').innerHTML = current.photos.map(([img, t, d]) => `<button class="ph" type="button" data-img="${img}" data-cap="${esc(t + ' · ' + d)}"><img src="assets/${img}.webp" alt="${esc(t)}" loading="eager" decoding="async"><span class="cap"><b>${esc(t)}</b>${esc(d)}</span></button>`).join('');
+  $('#gallery').innerHTML = current.photos.map(([img, t, d]) => `<button class="ph" type="button" data-img="${img}" data-cap="${esc(d ? t + ' · ' + d : t)}"><img src="assets/${img}.webp" alt="${esc(t)}" loading="eager" decoding="async"><span class="cap"><b>${esc(t)}</b>${esc(d)}</span></button>`).join('');
   $('#gallery').scrollLeft = 0;
 }
 // caixa de luz: uma foto ou uma sequência (fotos reais do interior, enquanto o 360° não está no ar)
 const LB = { list: null, i: 0 };
 function showLb(i) {
   const [img, t, d] = LB.list[i]; LB.i = i;
-  $('#lbImg').src = `assets/${img}.webp`; $('#lbImg').alt = t; $('#lbCap').textContent = `${t} · ${d}`;
+  $('#lbImg').src = `assets/${img}.webp`; $('#lbImg').alt = t; $('#lbCap').textContent = d ? `${t} · ${d}` : t;
   const seq = LB.list.length > 1; $('#lbPrev').hidden = !seq; $('#lbNext').hidden = !seq; $('#lbCount').hidden = !seq; $('#lbCount').textContent = `${i + 1} de ${LB.list.length}`;
   $('#lightbox').hidden = false;
 }
@@ -7713,7 +7766,7 @@ function bgPhotos() {   // v12b: fotos dos eventos e destinos, 2 por vez, depois
 }
 // 12i: internet fraca (pela própria conexão ou porque o cenário demorou): o carregando espera só as fotos do ônibus da vez;
 // as outras (o outro ônibus, hotéis, restaurantes, destinos) baixam depois, em segundo plano
-const slowNet = () => { try { const c = navigator.connection; if (c && (c.saveData || /(^|-)(2g|3g)$/.test(c.effectiveType || '') || (c.downlink && c.downlink < 3))) return true; } catch (e) { /* sem a API */ } return performance.now() > 7000; };
+const slowNet = () => { if (window.CT_LEVE) return true; try { const c = navigator.connection; if (c && (c.saveData || /(^|-)(2g|3g)$/.test(c.effectiveType || '') || (c.downlink && c.downlink < 3))) return true; } catch (e) { /* sem a API */ } return performance.now() > 7000; };
 function mediaReady() {
   const slow = slowNet(), full = mediaList();
   const top = new Set([...current.photos.map(([img]) => `assets/${img}.webp`), ...current.chips.map(c => (c[2] || {}).img).filter(Boolean).map(n => `assets/${n}.webp`), `assets/bus/${current.side}.webp`]);
@@ -7762,6 +7815,7 @@ if (location.hash === '#debug') {
     const ph = $('#scenePh'); World.place(ph);
     const phResize = () => { if (!root.classList.contains('scene-ready')) World.place(ph); };
     addEventListener('resize', phResize);
+    if (window.CT_LEVE) throw new Error('modo leve');   // sem WebGL: imagem leve no lugar do cenário 3D
     worldOK = await World.init({ canvas: $('#sceneCv'), host: $('#sceneVids') }, 'assets/');
     if (!worldOK) throw new Error('sem WebGL2');
     await Promise.race([preloadAll, new Promise(r => setTimeout(r, 8000))]);   // v23: fotos e fontes prontas antes dos ônibus
@@ -7782,7 +7836,12 @@ if (location.hash === '#debug') {
     console.warn('[mundo]', e);
     root.classList.add('no-gl');
     $('#sceneCv').hidden = true;
-    if (typeof World !== 'undefined' && World.placeLoop) {
+    if (window.CT_LEVE && typeof World !== 'undefined' && World.placeStatic) {
+      const sc = $('#scene'), sb = $('#sceneBus');
+      World.placeStatic(sc, sb, current.id);
+      window.__noGlBus = id => World.placeStatic(sc, sb, id);
+      addEventListener('resize', () => World.placeStatic(sc, sb, current.id));
+    } else if (typeof World !== 'undefined' && World.placeLoop) {
       const v = document.createElement('video'); v.id = 'sceneLoop'; v.className = 'scene-loop'; v.muted = true; v.loop = true; v.autoplay = true; v.playsInline = true;
       v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('aria-hidden', 'true');
       $('#scene').appendChild(v); World.placeLoop(v, current.id);

@@ -1,4 +1,4 @@
-"""Carlos Tur · carlostur.com.br
+r"""Carlos Tur · carlostur.com.br
 
 Um app serve tudo: o site (pasta site/), a API (/api/...) e o painel (/painel).
 Banco SQLite e mídia em CT_DATA (padrão ./dados, no Docker /data). Contexto e tarefas: D:\trabalhos\CONTEXTO-projeto-carlostur.md.
@@ -63,6 +63,8 @@ create table if not exists aceites(
 create table if not exists registros(
   id integer primary key, ip text, metodo text, caminho text, status integer, criado real);  -- Marco Civil art. 15: 6 meses, sigilo
 create index if not exists ix_registros_criado on registros(criado);
+create table if not exists pedidos_status(
+  chave text primary key, status text not null default 'novo', nota text, atualizado real, por integer);  -- T44: fila da TLH
 create table if not exists sugestoes(id integer primary key, usuario_id integer, texto text not null, criado real);
 create index if not exists ix_eventos_criado on eventos(criado);
 create index if not exists ix_acessos_criado on acessos(criado);
@@ -169,12 +171,31 @@ def sessao(req: Request):
 
 
 def aceite_pendente(uid) -> bool:
+    u = q1("select papel from usuarios where id=?", uid)
+    if u and u["papel"] == "tlh":   # o termo é aceito "em nome da Carlos Tur": não vale para a TLH
+        return False
     return not q1("select 1 from aceites where usuario_id=? and versao=?", uid, ACEITE_VERSAO)
+
+
+_CEN = {"m": 0.0, "ids": []}
+
+
+def cenario_ids() -> list:
+    """Modelos que já têm as imagens do cenário no site (lidos de SITE.fleet no index.html)."""
+    f = SITE / "index.html"
+    try:
+        m = f.stat().st_mtime
+        if _CEN["m"] != m:
+            _CEN.update(m=m, ids=re.findall(r"\bid: '([a-z0-9_-]+)', tab: '", f.read_text(encoding="utf-8")))
+    except OSError:
+        pass
+    return list(_CEN["ids"])
 
 
 def eu_json(u):
     return {"login": u["login"], "nome": u["nome"], "papel": u["papel"], "temp": bool(u["temp"]),
-            "aceite": aceite_pendente(u["id"]), "aceiteVersao": ACEITE_VERSAO, "senhaMin": SENHA_MIN}
+            "aceite": aceite_pendente(u["id"]), "aceiteVersao": ACEITE_VERSAO, "senhaMin": SENHA_MIN,
+            "cenario": cenario_ids()}
 
 
 def poe_cookies(resp: Response, token: str, csrf: str):
@@ -240,7 +261,7 @@ async def guarda(request: Request, call_next):
     h["Cross-Origin-Opener-Policy"] = "same-origin"
     if HTTPS:
         h["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    if p.startswith("/api/") or p.startswith("/painel"):
+    if p.startswith(("/api/", "/painel", "/tlh")):
         h["X-Robots-Tag"] = "noindex, nofollow"
         h["Cache-Control"] = "no-store"
     if registrar(p):
@@ -283,7 +304,7 @@ URL_SITE = E("CT_URL", "https://carlostur.com.br").rstrip("/")
 
 @app.get("/robots.txt")
 def robots():
-    return PlainTextResponse(f"User-agent: *\nDisallow: /painel\nDisallow: /api/\nSitemap: {URL_SITE}/sitemap.xml\n")
+    return PlainTextResponse(f"User-agent: *\nDisallow: /painel\nDisallow: /tlh\nDisallow: /api/\nSitemap: {URL_SITE}/sitemap.xml\n")
 
 
 @app.get("/sitemap.xml")
@@ -323,6 +344,12 @@ def inicio():
 @app.api_route("/painel.html", methods=["GET", "HEAD"])
 def painel():
     return FileResponse(SITE / "painel.html")
+
+
+@app.api_route("/tlh", methods=["GET", "HEAD"])
+@app.api_route("/tlh/", methods=["GET", "HEAD"])
+def tlh_pagina():
+    return FileResponse(SITE / "tlh.html")
 
 
 # ---------------- T09/T10 · entrar, sair, senha, aceite ----------------
@@ -424,8 +451,22 @@ def estado():
 def publico(D):
     if not D or not isinstance(D.get("frota"), list):
         return None
-    pub = [{"id": v.get("id"), "pub": True} for v in D["frota"] if isinstance(v, dict) and v.get("pub")]
-    emp = (D.get("empresa") or {}).get("pub") or None
+    pub = []
+    for v in D["frota"]:
+        if not (isinstance(v, dict) and isinstance(v.get("pub"), dict)):
+            continue
+        P = v["pub"]  # T37: só a versão publicada, nunca o rascunho
+        fotos = [{"s": str(f.get("s")), "l": str(f.get("l") or "")[:80]} for f in P.get("fotos") or []
+                 if isinstance(f, dict) and re.fullmatch(r"(assets/[A-Za-z0-9_/-]+|/midia/[A-Za-z0-9_-]+)\.webp", str(f.get("s") or ""))]
+        pub.append({"id": v.get("id"), "pub": True, "dados": {
+            "nome": str(P.get("nome") or "")[:80], "lugares": P.get("lugares"), "pol": P.get("pol"), "tipo": P.get("tipo"),
+            "fotos": fotos[:20]}})
+    emp = dict((D.get("empresa") or {}).get("pub") or {}) or None
+    if emp:  # T41: a logo só vai ao site depois que a TLH marca "Pronto" na fila /tlh
+        lg = str(emp.get("logo") or "")
+        ok = lg.startswith("/midia/") and q1("select 1 from pedidos_status where chave=? and status='pronto'",
+                                             "logo:" + hashlib.sha256(lg.encode()).hexdigest()[:12])
+        emp["logo"] = lg if ok else ""
     return {"frota": pub, "ordemPub": D.get("ordemPub") or [p["id"] for p in pub], "disp": D.get("disp") or {},
             "empresa": emp}
 
@@ -618,6 +659,82 @@ async def sugestao(req: Request):
         return erro("Escreva a sugestão primeiro.")
     ex("insert into sugestoes(usuario_id,texto,criado) values(?,?,?)", u["id"], t, time.time())
     return {"ok": True}
+
+
+# ---------------- T44 · fila de pedidos da TLH (só usuários --tlh) ----------------
+STATUS_OK = ("novo", "producao", "pronto", "arquivado")
+
+
+def so_tlh(req: Request):
+    u, e = logado(req)
+    if e:
+        return None, e
+    if u["papel"] != "tlh":
+        return None, erro("Área só da TLH.", 403)
+    return u, None
+
+
+@app.get("/api/tlh/pedidos")
+def tlh_pedidos(req: Request):
+    u, e = so_tlh(req)
+    if e:
+        return e
+    st = {r["chave"]: dict(r) for r in q("select * from pedidos_status")}
+    itens = []
+
+    def add(chave, tipo, titulo, detalhe, quando=None, **extra):
+        s0 = st.get(chave, {})
+        itens.append({"chave": chave, "tipo": tipo, "titulo": titulo, "detalhe": detalhe, "quando": quando,
+                      "status": s0.get("status", "novo"), "nota": s0.get("nota") or "", **extra})
+
+    D, _, quando = estado()
+    cen = cenario_ids()
+    for v in (D or {}).get("frota") or []:
+        pub = v.get("pub") if isinstance(v, dict) else None
+        if pub and v.get("id") not in cen:
+            fotos = [f.get("s") for f in pub.get("fotos") or [] if isinstance(f, dict) and f.get("s")]
+            add("modelo:" + str(v["id"]), "modelo", pub.get("nome") or "Veículo sem nome",
+                f"{pub.get('lugares') or '?'} lugares · {len(fotos)} foto{'' if len(fotos) == 1 else 's'} · código {v['id']} (usar este id em SITE.fleet)",
+                quando, fotos=fotos[:12], passeio=v.get("passeio") or "")
+    for r in q("select id,arquivo,bytes,criado from midia where tipo='video' order by criado desc"):
+        add(f"video:{r['id']}", "video", r["arquivo"].split("/")[-1], f"{(r['bytes'] or 0) / 2**20:.0f} MB",
+            r["criado"], baixar=f"/api/tlh/arquivo/{r['id']}")
+    logo = ((D or {}).get("empresa") or {}).get("pub", {}).get("logo") if D else ""
+    if logo:
+        add("logo:" + hashlib.sha256(logo.encode()).hexdigest()[:12], "logo", "Logo nova", "Conferir tamanho e leitura em cima do cenário. Marcar Pronto aprova: a logo vai ao site.",
+            quando, imagem=logo if logo.startswith("/midia/") else "")
+    for r in q("select s.id,s.texto,s.criado,u.login from sugestoes s left join usuarios u on u.id=s.usuario_id order by s.criado desc"):
+        add(f"sugestao:{r['id']}", "sugestao", "Sugestão de " + (r["login"] or "?"), r["texto"], r["criado"])
+    ordem = {"novo": 0, "producao": 1, "pronto": 2, "arquivado": 3}
+    itens.sort(key=lambda i: (ordem.get(i["status"], 9), -(i["quando"] or 0)))
+    return {"itens": itens, "cenario": cen}
+
+
+@app.post("/api/tlh/status")
+async def tlh_status(req: Request):
+    u, e = so_tlh(req)
+    if e:
+        return e
+    b = await req.json()
+    chave, status = str(b.get("chave") or "")[:80], str(b.get("status") or "")
+    if not re.fullmatch(r"(modelo|video|logo|sugestao):[A-Za-z0-9_-]+", chave) or status not in STATUS_OK:
+        return erro("Pedido inválido.")
+    ex("insert into pedidos_status(chave,status,nota,atualizado,por) values(?,?,?,?,?) on conflict(chave) do update set "
+       "status=excluded.status, nota=excluded.nota, atualizado=excluded.atualizado, por=excluded.por",
+       chave, status, str(b.get("nota") or "")[:500], time.time(), u["id"])
+    return {"ok": True}
+
+
+@app.get("/api/tlh/arquivo/{mid}")
+def tlh_arquivo(mid: int, req: Request):
+    u, e = so_tlh(req)
+    if e:
+        return e
+    r = q1("select arquivo from midia where id=? and tipo='video'", mid)
+    f = (DATA / r["arquivo"]).resolve() if r else None
+    if not f or not f.is_file() or DATA not in f.parents:
+        return erro("Arquivo não encontrado.", 404)
+    return FileResponse(f, filename=f.name)
 
 
 # ---------------- limpeza diária (prazos da política de privacidade) ----------------

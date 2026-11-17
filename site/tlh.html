@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Pedidos da TLH · Carlos Tur</title>
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="stylesheet" href="fonts/poppins.css">
+<style>
+/* T44 · fila de pedidos da TLH: lista única, filtros por situação; mesmos tons do site */
+:root{color-scheme:light;--bg:#eef3f6;--card:#fff;--fg:#0f1d26;--mut:#56656f;--line:#d5dfe5;--acc:#23668e;--ok:#1f7a4d;--warn:#b5651d;--soft:#e6eef3;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#0e161b;--card:#16222a;--fg:#e4edf2;--mut:#a3b3bd;--line:#2c3c46;--acc:#8abcd8;--ok:#4fc387;--warn:#e39a55;--soft:#1c2c35;--err:#ff8a80}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0e161b;--card:#16222a;--fg:#e4edf2;--mut:#a3b3bd;--line:#2c3c46;--acc:#8abcd8;--ok:#4fc387;--warn:#e39a55;--soft:#1c2c35;--err:#ff8a80}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 Poppins,system-ui,-apple-system,"Segoe UI",sans-serif;padding-block:24px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:860px;margin:0 auto;display:grid;gap:16px}
+h1{font-size:1.5rem;font-weight:600;margin:0}
+.sub{color:var(--mut);margin:2px 0 0;font-size:.9rem}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.f{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:999px;padding:6px 14px;font:inherit;font-size:.85rem;cursor:pointer}
+.f[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.f b{font-variant-numeric:tabular-nums}
+.lista{display:grid;gap:10px}
+.it{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;padding:12px 14px;display:grid;gap:8px;min-width:0}
+.it[data-s="producao"]{border-left-color:var(--acc)}.it[data-s="pronto"]{border-left-color:var(--ok)}.it[data-s="arquivado"]{border-left-color:var(--line);opacity:.75}
+.hd{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
+.tp{font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--acc)}
+.hd b{font-weight:600;overflow-wrap:anywhere}
+.qd{margin-left:auto;color:var(--mut);font-size:.8rem;font-variant-numeric:tabular-nums}
+.dt{color:var(--mut);font-size:.88rem;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.fotos{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.fotos a{flex:none}.fotos img{display:block;height:72px;width:auto;border-radius:6px;border:1px solid var(--line)}
+.ac{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ac select,.ac input{font:inherit;font-size:.85rem;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}
+.ac input{flex:1 1 200px}
+.bt{font:inherit;font-size:.85rem;font-weight:600;border:0;border-radius:8px;padding:7px 14px;background:var(--fg);color:var(--bg);cursor:pointer;text-decoration:none;display:inline-block}
+.bt.sec{background:var(--soft);color:var(--fg)}
+.msg{font-size:.82rem;color:var(--ok);min-height:1em}.msg.err{color:var(--err)}
+.vazio,.aviso{background:var(--card);border:1px dashed var(--line);border-radius:10px;padding:18px;color:var(--mut)}
+.aviso a{color:var(--acc)}
+.ajuda{color:var(--mut);font-size:.82rem;line-height:1.5}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Pedidos da TLH</h1>
+    <p class="sub">O que chegou do painel da Carlos Tur e precisa de mão da TLH: modelos novos, vídeos de passeio, logo e sugestões.</p>
+  </header>
+  <div class="bar" role="group" aria-label="Filtrar por situação" id="filtros"></div>
+  <div class="lista" id="lista" aria-live="polite"><p class="vazio">Carregando os pedidos…</p></div>
+  <p class="ajuda">Modelo novo: faça as imagens do cenário, acrescente o modelo em <code>SITE.fleet</code> no <code>site/index.html</code> com o mesmo código mostrado aqui e rode <code>docker compose up -d --build</code>. Ao voltar, ele some desta lista sozinho. Vídeos ficam em <code>dados/videos/</code> no servidor.</p>
+</main>
+<script>
+(() => {
+  const NOME = { novo: 'Novo', producao: 'Em produção', pronto: 'Pronto', arquivado: 'Arquivado' };
+  const TIPO = { modelo: 'Modelo novo', video: 'Vídeo do passeio', logo: 'Logo', sugestao: 'Sugestão' };
+  const $ = s => document.querySelector(s);
+  const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const csrf = () => { const m = document.cookie.match(/(?:^|; )ct_c=([^;]*)/); return m ? decodeURIComponent(m[1]) : ''; };
+  const quando = t => t ? new Date(t * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+  let itens = [], filtro = 'abertos';
+
+  function aviso(html) { $('#lista').innerHTML = `<p class="aviso">${html}</p>`; $('#filtros').innerHTML = ''; }
+
+  function filtros() {
+    const n = s => itens.filter(i => s === 'abertos' ? i.status !== 'arquivado' && i.status !== 'pronto' : i.status === s).length;
+    const ops = [['abertos', 'Em aberto'], ['pronto', 'Prontos'], ['arquivado', 'Arquivados']];
+    $('#filtros').innerHTML = ops.map(([k, t]) => `<button type="button" class="f" data-f="${k}" aria-pressed="${k === filtro}">${t} <b>${n(k)}</b></button>`).join('');
+  }
+
+  function desenha() {
+    filtros();
+    const L = itens.filter(i => filtro === 'abertos' ? i.status !== 'arquivado' && i.status !== 'pronto' : i.status === filtro);
+    if (!L.length) { $('#lista').innerHTML = `<p class="vazio">${filtro === 'abertos' ? 'Nada pendente. Quando o Carlos publicar um modelo novo, enviar vídeo, trocar a logo ou mandar sugestão, aparece aqui.' : 'Nada aqui.'}</p>`; return; }
+    $('#lista').innerHTML = L.map((i, n) => `
+      <article class="it" data-s="${esc(i.status)}" data-k="${esc(i.chave)}">
+        <div class="hd"><span class="tp">${esc(TIPO[i.tipo] || i.tipo)}</span><b>${esc(i.titulo)}</b><span class="qd">${esc(quando(i.quando))}</span></div>
+        ${i.detalhe ? `<p class="dt">${esc(i.detalhe)}</p>` : ''}
+        ${i.fotos && i.fotos.length ? `<div class="fotos">${i.fotos.map(f => `<a href="${esc(f)}" target="_blank" rel="noopener"><img src="${esc(f)}" alt="Foto enviada pelo painel" loading="lazy"></a>`).join('')}</div>` : ''}
+        ${i.imagem ? `<div class="fotos"><a href="${esc(i.imagem)}" target="_blank" rel="noopener"><img src="${esc(i.imagem)}" alt="Logo enviada"></a></div>` : ''}
+        <div class="ac">
+          <label class="sr" for="s${n}" hidden>Situação</label>
+          <select id="s${n}" aria-label="Situação">${Object.entries(NOME).map(([k, t]) => `<option value="${k}"${k === i.status ? ' selected' : ''}>${t}</option>`).join('')}</select>
+          <input id="n${n}" type="text" maxlength="500" placeholder="Nota (opcional)" aria-label="Nota" value="${esc(i.nota)}">
+          <button type="button" class="bt" data-salva="${n}">Salvar</button>
+          ${i.baixar ? `<a class="bt sec" href="${esc(i.baixar)}" download>Baixar vídeo</a>` : ''}
+          <span class="msg" role="status" id="m${n}"></span>
+        </div>
+      </article>`).join('');
+    $('#lista').querySelectorAll('[data-salva]').forEach(b => b.onclick = () => salva(L[+b.dataset.salva], +b.dataset.salva));
+  }
+
+  async function salva(i, n) {
+    const m = $('#m' + n); m.className = 'msg'; m.textContent = 'Salvando…';
+    try {
+      const r = await fetch('api/tlh/status', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CT': csrf() },
+        body: JSON.stringify({ chave: i.chave, status: $('#s' + n).value, nota: $('#n' + n).value }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.erro || 'Não salvou. Tente de novo.');
+      i.status = $('#s' + n).value; i.nota = $('#n' + n).value; m.textContent = 'Salvo.';
+      setTimeout(desenha, 700);
+    } catch (e) { m.className = 'msg err'; m.textContent = e.message; }
+  }
+
+  $('#filtros').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (b) { filtro = b.dataset.f; desenha(); } });
+
+  (async () => {
+    try {
+      const r = await fetch('api/tlh/pedidos', { credentials: 'same-origin' });
+      if (r.status === 401) return aviso('Entre primeiro no <a href="/painel">painel</a> com o acesso da TLH e depois volte aqui.');
+      if (r.status === 403) return aviso('Esta área é só da TLH. Entre no <a href="/painel">painel</a> com um acesso criado com <code>--tlh</code>.');
+      if (!r.ok) throw new Error();
+      itens = (await r.json()).itens || []; desenha();
+    } catch (e) { aviso('Não deu para carregar agora. Recarregue a página.'); }
+  })();
+})();
+</script>
+</body>
+</html>

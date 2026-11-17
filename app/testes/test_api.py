@@ -92,7 +92,7 @@ def test_estado_publico_e_conflito():
     salvo = c.get("/api/painel").json()["dados"]
     assert "acesso" not in salvo and "contatos" not in salvo
     pub = cliente().get("/api/site").json()
-    assert pub["frota"] == [{"id": "g8", "pub": True}] and pub["disp"]["g8"]["livre"] == 1
+    assert [f["id"] for f in pub["frota"]] == ["g8"] and pub["frota"][0]["dados"]["nome"] == "G8" and pub["disp"]["g8"]["livre"] == 1
     js = cliente().get("/api/site.js").text
     assert js.startswith("window.CT_PUB=") and "rascunho" not in js
 
@@ -164,3 +164,53 @@ def test_ano_sitemap_e_cli(capsys):
     assert c.post("/api/sugestao", json={"texto": "Mostrar as viagens do mês"}, headers=h(c)).status_code == 200
     A._cli(["sugestoes"]); A._cli(["videos"])
     assert "Mostrar as viagens do mês" in capsys.readouterr().out
+
+
+def test_tlh_nao_aceita_termo_da_carlos():
+    s = A.senha_temporaria()
+    A.ex("delete from usuarios where login='tlh@exemplo.com'")
+    A.ex("insert into usuarios(login,nome,senha_hash,temp,papel,criado) values(?,?,?,?,?,?)",
+         "tlh@exemplo.com", "TLH", A.hash_senha(s), 1, "tlh", 0)
+    c = cliente()
+    assert c.post("/api/entrar", json={"login": "tlh@exemplo.com", "senha": s}).status_code == 200
+    r = c.post("/api/senha", json={"atual": s, "nova": "estrada-serra-2026"}, headers=h(c)).json()
+    assert r["aceite"] is False and c.get("/api/painel").status_code == 200
+
+
+def test_fila_da_tlh():
+    c = pronto()   # usuário da empresa
+    v = c.get("/api/painel").json()["versao"]
+    D = {"frota": [{"id": "g8", "pub": {"nome": "G8"}}, {"id": "vnovo1", "pub": {"nome": "Micro novo", "lugares": 28, "fotos": [{"s": "/midia/x.webp"}]}}],
+         "empresa": {"pub": {"logo": "/midia/logo.webp"}}}
+    assert c.put("/api/painel", json={"dados": D, "versao": v}, headers=h(c)).status_code == 200
+    assert c.get("/api/tlh/pedidos").status_code == 403          # empresa não vê a fila
+    s = A.senha_temporaria()
+    A.ex("delete from usuarios where login='fila@exemplo.com'")
+    A.ex("insert into usuarios(login,nome,senha_hash,temp,papel,criado) values(?,?,?,?,?,?)", "fila@exemplo.com", "TLH", A.hash_senha(s), 0, "tlh", 0)
+    t = cliente(); t.post("/api/entrar", json={"login": "fila@exemplo.com", "senha": s})
+    it = t.get("/api/tlh/pedidos").json()["itens"]
+    tipos = {i["tipo"] for i in it}
+    assert {"modelo", "logo"} <= tipos and not any(i["chave"] == "modelo:g8" for i in it)
+    assert t.post("/api/tlh/status", json={"chave": "modelo:vnovo1", "status": "producao", "nota": "fazendo sprite"}, headers=h(t)).status_code == 200
+    assert t.post("/api/tlh/status", json={"chave": "x; drop", "status": "pronto"}, headers=h(t)).status_code == 400
+    novo = [i for i in t.get("/api/tlh/pedidos").json()["itens"] if i["chave"] == "modelo:vnovo1"][0]
+    assert novo["status"] == "producao" and novo["nota"] == "fazendo sprite"
+    assert "cenario" in t.get("/api/eu").json() and "g8" in t.get("/api/eu").json()["cenario"]
+    assert cliente().get("/tlh").status_code == 200 and "Disallow: /tlh" in cliente().get("/robots.txt").text
+
+
+def test_site_recebe_dados_e_logo_so_aprovada():
+    c = pronto()
+    v = c.get("/api/painel").json()["versao"]
+    D = {"frota": [{"id": "g8", "nome": "rascunho secreto", "pub": {"nome": "G8 Leito Novo", "lugares": 44, "pol": "leito", "tipo": "dd",
+          "fotos": [{"s": "/midia/abc.webp", "l": "Salão"}, {"s": "javascript:alert(1)", "l": "x"}]}}],
+         "empresa": {"pub": {"logo": "/midia/logo1.webp", "wa": "(51) 99797-6191"}}}
+    assert c.put("/api/painel", json={"dados": D, "versao": v}, headers=h(c)).status_code == 200
+    pub = cliente().get("/api/site").json()
+    d = pub["frota"][0]["dados"]
+    assert d["nome"] == "G8 Leito Novo" and d["lugares"] == 44 and d["fotos"] == [{"s": "/midia/abc.webp", "l": "Salão"}]
+    assert "rascunho secreto" not in cliente().get("/api/site.js").text
+    assert pub["empresa"]["logo"] == ""                                      # ainda não aprovada
+    k = "logo:" + A.hashlib.sha256(b"/midia/logo1.webp").hexdigest()[:12]
+    A.ex("insert into pedidos_status(chave,status) values(?, 'pronto') on conflict(chave) do update set status='pronto'", k)
+    assert cliente().get("/api/site").json()["empresa"]["logo"] == "/midia/logo1.webp"
