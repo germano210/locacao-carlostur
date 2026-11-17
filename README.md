@@ -44,5 +44,23 @@ Sem servidor (`cd site && python -m http.server`) o painel volta ao modo protót
 3. Cron: `10 3 * * * cd /caminho/locacao-carlostur && ./backup.sh >> dados/backup.log 2>&1`
 4. Restaurar (testar uma vez assim que ligar o backup): `./restaurar.sh carlostur-AAAA-MM-DD_HHMM.tar.age chave-carlostur.txt` — restaura numa pasta nova, confere o banco e mostra os comandos para pôr no ar.
 
+## Aviso se o site cair (T43)
+O endereço `https://carlostur.com.br/saude` responde `{"ok":true,...}` só quando o app **e** o banco estão de pé (aceita GET e HEAD; não entra no registro de acessos). Dois avisos gratuitos, que se completam:
+
+**1. Monitor de fora (pega tudo: servidor desligado, Docker parado, túnel, DNS)** — UptimeRobot, plano gratuito (50 monitores, confere a cada 5 min, aviso por e-mail).
+1. Crie a conta em uptimerobot.com com o e-mail que você lê no celular.
+2. **New monitor** → tipo **Keyword** → URL `https://carlostur.com.br/saude` → palavra `"ok":true` → alertar quando a palavra **não existir** → intervalo 5 min.
+   (Se o tipo Keyword não estiver no plano, use **HTTP(s)** com a mesma URL: avisa quando não vier 200.)
+3. Em **Alert contacts**, confirme o e-mail; instale o app do UptimeRobot no celular para receber a notificação na hora.
+4. Teste: `sudo docker compose stop carlostur`, espere o aviso (até uns 5–10 min) e `sudo docker compose up -d`. Deve chegar também o aviso de "voltou".
+Observação: os termos do plano gratuito já proibiram uso comercial (2024–2025) e voltaram a permitir em 2026; confira a regra atual ao criar a conta. Alternativas gratuitas com uso comercial liberado: HetrixTools (15 monitores, 1 min) e Better Stack (10 monitores, 3 min).
+
+**2. Aviso do próprio Cloudflare quando o túnel cai** (não precisa de conta nova; é na conta do Cloudflare do carlostur.com.br).
+1. Painel do Cloudflare → **Notifications** → **Add** → **Tunnel Health Alert**.
+2. Nome "Túnel carlostur", seu e-mail → salvar. Avisa quando o túnel muda de saudável para degradado/caído.
+Sozinho ele não vê o app travado com o túnel de pé; por isso o monitor de fora é o principal.
+
+**Se o aviso chegar:** `sudo docker compose ps` e `sudo docker compose logs --tail 50 carlostur cloudflared` na pasta `~/carlostur/codigo`; quase sempre `sudo docker compose up -d` resolve. O "Health Checks" do Cloudflare (aba Traffic) não serve aqui: é de plano pago.
+
 ## Atualizar
 `git pull && docker compose up -d --build`. O banco e a mídia ficam em `dados/` e não são tocados.

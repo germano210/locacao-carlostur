@@ -1,0 +1,12 @@
+# Fora da imagem: dados (banco, fotos, vídeos), segredos e sobras. A imagem só precisa de app/ e site/.
+.git
+.env
+.env.*
+dados
+dados-teste
+_antigo
+**/__pycache__
+**/.pytest_cache
+*.tar
+*.tgz
+*.age

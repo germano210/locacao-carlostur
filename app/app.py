@@ -452,16 +452,23 @@ def estado():
 def publico(D):
     if not D or not isinstance(D.get("frota"), list):
         return None
-    pub = []
+    pub, cen = [], set(cenario_ids())
     for v in D["frota"]:
         if not (isinstance(v, dict) and isinstance(v.get("pub"), dict)):
             continue
+        if v.get("id") not in cen:
+            continue  # T39b (John, 17/11): modelo novo só vai ao site depois da verificação da TLH, no padrão dos outros (cenário pronto)
         P = v["pub"]  # T37: só a versão publicada, nunca o rascunho
         fotos = [{"s": str(f.get("s")), "l": str(f.get("l") or "")[:80]} for f in P.get("fotos") or []
                  if isinstance(f, dict) and re.fullmatch(r"(assets/[A-Za-z0-9_/-]+|/midia/[A-Za-z0-9_-]+)\.webp", str(f.get("s") or ""))]
+        # T39: itens a bordo ligados e extras (o site usa na ficha do veículo que ainda não tem cenário da TLH)
+        bordo = [[k, str(b.get("t") or "").strip()[:60]] for k, b in (P.get("bordo") or {}).items()
+                 if isinstance(b, dict) and b.get("on") and re.fullmatch(r"[a-z]{1,12}", str(k)) and str(b.get("t") or "").strip()] \
+            if isinstance(P.get("bordo"), dict) else []
+        extras = [str(x.get("n") or "").strip()[:60] for x in P.get("extras") or [] if isinstance(x, dict) and str(x.get("n") or "").strip()]
         pub.append({"id": v.get("id"), "pub": True, "dados": {
             "nome": str(P.get("nome") or "")[:80], "lugares": P.get("lugares"), "pol": P.get("pol"), "tipo": P.get("tipo"),
-            "fotos": fotos[:20]}})
+            "fotos": fotos[:20], "bordo": bordo[:20], "extras": extras[:10]}})
     emp = dict((D.get("empresa") or {}).get("pub") or {}) or None
     if emp:  # T41: a logo só vai ao site depois que a TLH marca "Pronto" na fila /tlh
         lg = str(emp.get("logo") or "")

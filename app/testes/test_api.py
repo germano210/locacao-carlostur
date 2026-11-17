@@ -214,3 +214,30 @@ def test_site_recebe_dados_e_logo_so_aprovada():
     k = "logo:" + A.hashlib.sha256(b"/midia/logo1.webp").hexdigest()[:12]
     A.ex("insert into pedidos_status(chave,status) values(?, 'pronto') on conflict(chave) do update set status='pronto'", k)
     assert cliente().get("/api/site").json()["empresa"]["logo"] == "/midia/logo1.webp"
+
+
+def test_veiculo_novo_vai_ao_site_com_itens():
+    """T39: veículo publicado sem cenário da TLH sai em /api/site com fotos, itens a bordo ligados e extras; rascunho nunca."""
+    c = pronto()
+    b = c.get("/api/painel").json(); v = b["versao"]
+    pub = {"nome": "Van Sprinter", "lugares": 15, "pol": "exec", "tipo": "van",
+           "bordo": {"ar": {"on": True, "t": "Ar-condicionado"}, "tv": {"on": False, "t": "Monitores"},
+                     "x y": {"on": True, "t": "chave inválida"}, "usb": {"on": True, "t": "  "}},
+           "extras": [{"n": "Porta-copos", "o": "no meio"}, {"n": ""}],
+           "fotos": [{"s": "/midia/abc123.webp", "l": "Van"}, {"s": "http://fora/x.webp", "l": "x"}]}
+    D = {"frota": [{"id": "vnova1", "nome": "RASCUNHO", "pub": pub}, {"id": "vrasc", "nome": "Só rascunho", "pub": None}],
+         "ordemPub": ["vnova1"], "disp": {}}
+    assert c.put("/api/painel", json={"dados": D, "versao": v}, headers=h(c)).status_code == 200
+    assert cliente().get("/api/site").json()["frota"] == []      # T39b: sem a TLH pôr no padrão, não vai ao site
+    assert "Van Sprinter" not in cliente().get("/api/site.js").text
+    orig = A.cenario_ids; A.cenario_ids = lambda: orig() + ["vnova1"]   # como se a TLH tivesse feito o cenário
+    try:
+        fr = cliente().get("/api/site").json()["frota"]
+    finally:
+        A.cenario_ids = orig
+    assert [f["id"] for f in fr] == ["vnova1"]
+    d = fr[0]["dados"]
+    assert d["nome"] == "Van Sprinter" and d["lugares"] == 15 and d["tipo"] == "van"
+    assert d["bordo"] == [["ar", "Ar-condicionado"]] and d["extras"] == ["Porta-copos"]
+    assert d["fotos"] == [{"s": "/midia/abc123.webp", "l": "Van"}]
+    assert "vnova1" not in A.cenario_ids() and {"g8", "b2501"} <= set(A.cenario_ids())

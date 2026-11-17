@@ -1833,6 +1833,13 @@ html.leve .glass { background: rgba(8, 20, 40, .45) !important; }
 html.leve .ld-text, html.leve .tut { background: rgba(8, 20, 40, .88) !important; }
 </style>
 <style>.wm-img{width:auto!important;height:auto;max-height:46px;max-width:clamp(132px,38vw,210px);object-fit:contain}</style>
+<style>/* T39: veículo sem cenário 3D — a 1ª foto publicada ocupa o palco */
+.st-gen{position:absolute;z-index:1;left:0;top:0;width:100%;height:var(--stage-vis);background:#0b1626;display:grid;place-items:center;pointer-events:none;opacity:.999}/* .999: com a foto 100 % opaca por cima, o Chromium deixava de pintar o resto do cenário (ficava preto atrás dos blocos) */
+.st-gen[hidden]{display:none}
+.st-gen img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 55%}
+.st-gen p{margin:0;padding:0 24px;color:#fff;font-weight:600;font-size:15px;text-align:center}
+.tpc-img.gen img{object-fit:cover;width:100%;height:100%;border-radius:12px}
+</style>
 </head>
 <body>
 <script>document.documentElement.classList.add('intro');try{history.scrollRestoration='manual'}catch(e){}</script>
@@ -1906,6 +1913,7 @@ html.leve .ld-text, html.leve .tut { background: rgba(8, 20, 40, .88) !important
 
 <!-- ============ palco: o ônibus fica sempre à vista (encolhe ao rolar) ============ -->
 <div class="stage" id="stage">
+  <div class="st-gen" id="stGen" hidden><img alt="" decoding="async"><p hidden></p></div>
   <div class="st-veil" aria-hidden="true"></div>
   <div class="st-load" id="stLoad" aria-live="polite"><span class="ld-text"><span id="ldText">Carregando cenário</span><i class="ld-dots"><b>.</b><b>.</b><b>.</b></i></span></div>
   <header class="st-head">
@@ -4125,10 +4133,22 @@ const RouteMap = (() => {
   function gestures() {
     cv.style.touchAction = 'pan-y';
     const ptrs = new Map(); let drag = null, moved = false, down0 = null;
-    const pickHere = (x, y) => { const k = pickAt(x, y); if (k && onPick) onPick(k, x, y); };
+    const pickHere = (x, y) => { const k = pickAt(x, y); if (k && onPick) onPick(k, x, y); return k; };
     let t1 = null, pinch = null;
+    // T47: no toque, o mapa pequeno abre o mapa grande (um dedo move, como no Google Maps); dentro da folha do orçamento fica como antes
+    const inSheet = () => !!cv.closest('.qb-map');
+    const wantFull = () => { if (!fullOn && !inSheet()) cv.dispatchEvent(new CustomEvent('rmwantfull', { bubbles: true })); };
+    let flRaf = 0, vx = 0, vy = 0, tap0 = null;
+    const flStop = () => { cancelAnimationFrame(flRaf); flRaf = 0; };
+    const fling = () => {   // inércia: o mapa continua um pouco depois de soltar
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      let last = performance.now();
+      const step = now => { const dt = Math.min(40, now - last); last = now; panBy(vx * dt, vy * dt); const k = Math.exp(-dt / 320); vx *= k; vy *= k; flRaf = Math.hypot(vx, vy) > 0.02 && fullOn ? requestAnimationFrame(step) : 0; };
+      flStop(); flRaf = requestAnimationFrame(step);
+    };
     const tp = (t) => { const r = cv.getBoundingClientRect(); return [t.clientX - r.left, t.clientY - r.top]; };
     cv.addEventListener('touchstart', e => {
+      flStop(); vx = vy = 0;
       if (e.touches.length === 1) { const [x, y] = tp(e.touches[0]); t1 = { x, y, t: performance.now(), moved: false }; pinch = null; }
       else if (e.touches.length === 2) {
         const a = tp(e.touches[0]), b = tp(e.touches[1]);
@@ -4146,13 +4166,17 @@ const RouteMap = (() => {
         pinch = { cx, cy, d };
       } else if (e.touches.length === 1 && t1) {
         const [x, y] = tp(e.touches[0]);
-        if (fullOn) { if (!t1.moved && Math.hypot(x - t1.x, y - t1.y) > 6) t1.moved = true; if (t1.moved) { e.preventDefault(); panBy(x - t1.x, y - t1.y); t1.x = x; t1.y = y; } }
+        if (fullOn) { if (!t1.moved && Math.hypot(x - t1.x, y - t1.y) > 6) t1.moved = true; if (t1.moved) { e.preventDefault(); const now = performance.now(), dt = Math.max(1, now - (t1.vt || now - 16)), dx = x - t1.x, dy = y - t1.y; vx = vx * 0.4 + dx / dt * 0.6; vy = vy * 0.4 + dy / dt * 0.6; t1.vt = now; panBy(dx, dy); t1.x = x; t1.y = y; } }
         else { if (!t1.moved && Math.hypot(x - t1.x, y - t1.y) > 8) { t1.moved = true; t1.pan = Math.abs(x - t1.x) > Math.abs(y - t1.y) * 0.8; }   // v12b: um dedo de lado move o mapa; para cima e para baixo rola a página
-          if (t1.moved && t1.pan) { e.preventDefault(); panBy(x - t1.x, y - t1.y); t1.x = x; t1.y = y; } }
+          if (t1.moved && t1.pan) { e.preventDefault(); if (inSheet()) { panBy(x - t1.x, y - t1.y); t1.x = x; t1.y = y; } else { wantFull(); t1 = null; } } }
       }
     }, { passive: false });
     cv.addEventListener('touchend', e => {
-      if (t1 && !t1.moved && performance.now() - t1.t < 600 && e.touches.length === 0) { e.preventDefault(); pickHere(t1.x, t1.y); }
+      if (t1 && !t1.moved && performance.now() - t1.t < 600 && e.touches.length === 0) {
+        e.preventDefault(); const now = performance.now(), hit = pickHere(t1.x, t1.y);
+        if (!hit && !fullOn) wantFull();   // T47: tocar fora das cidades abre o mapa grande
+        else if (!hit) { if (tap0 && now - tap0.t < 350 && Math.hypot(t1.x - tap0.x, t1.y - tap0.y) < 40) { zoomAt(t1.x, t1.y, 0.5); tap0 = null; } else tap0 = { x: t1.x, y: t1.y, t: now }; }   // dois toques aproximam
+      } else if (t1 && t1.moved && fullOn && e.touches.length === 0 && performance.now() - (t1.vt || 0) < 90 && Math.hypot(vx, vy) > 0.25) fling();
       if (e.touches.length < 2) pinch = null;
       if (e.touches.length === 0) t1 = null;
     }, { passive: false });
@@ -4771,7 +4795,7 @@ const SITE = {
   ],
   compareBoth: 'Nos dois: 46 lugares, WC a bordo e ar-condicionado.',
   // roteiros prontos (grupo = o grupo escolhe a data, sem preço no site; saida = data marcada e valor por pessoa, venda final)
-  vars: { roteiros: true, preco: false, emdia: false },   // 12f: emdia = bloco "Em dia" (revisão, motorista, viagens); escondido até a CarlosTur mandar os dados reais   // v12: variáveis do site âncora (escolhidas pela TLH, não pelo painel)
+  vars: { roteiros: true, preco: false, emdia: false, generico: false },   // T39b: generico = mostrar modelo sem cenário (com a foto); desligado: só entra depois da TLH   // 12f: emdia = bloco "Em dia" (revisão, motorista, viagens); escondido até a CarlosTur mandar os dados reais   // v12: variáveis do site âncora (escolhidas pela TLH, não pelo painel)
   packages: [
     { ex: true, tipo: 'grupo', titulo: 'Gramado e Canela no mesmo dia', dest: 'Gramado', img: 'gramado', dias: 1, dur: 'Bate e volta', kind: 'serra', inclui: ['Rua Coberta e Lago Negro', 'Catedral de Pedra e Caracol', 'Paradas para café'] },
     { ex: true, tipo: 'grupo', titulo: 'Vinícolas do Vale dos Vinhedos', dest: 'Bento Gonçalves', img: 'bento', dias: 1, dur: '1 dia', kind: 'serra', inclui: ['2 vinícolas com degustação', 'Almoço típico italiano', 'Opção de Maria Fumaça'] },
@@ -4801,6 +4825,7 @@ const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const T0 = performance.now();
 // 11/11: no protótipo (site e painel no mesmo endereço), o site segue a ordem e as exclusões publicadas no painel.
 // No servidor, isto vem da API; aqui vem do navegador. Veículo novo só entra no cenário com as imagens dele (E43).
+SITE.cenIds = SITE.fleet.map(b => b.id);   // T39: modelos que têm cenário 3D (imagens da TLH)
 (() => { try {
   const P = window.CT_PUB !== undefined ? window.CT_PUB : JSON.parse(localStorage.getItem('ct-painel-v1') || 'null');
   if (!P || !Array.isArray(P.frota)) return;   // T17: no servidor vem de api/site.js
@@ -4811,7 +4836,13 @@ const T0 = performance.now();
     const y = parseInt(P.empresa.desde, 10); if (y > 1900 && y <= new Date().getFullYear()) SITE.since = y;
   }
   const pubIds = P.frota.filter(v => v && v.pub).map(v => v.id), ord = (P.ordemPub || pubIds).filter(id => pubIds.includes(id));
-  const keep = SITE.fleet.filter(b => pubIds.includes(b.id)); if (!keep.length) return;
+  const keep = SITE.fleet.filter(b => pubIds.includes(b.id));
+  // T39: veículo publicado que ainda não tem cenário 3D entra "genérico": seletor, fotos e contato; a 1ª foto vai ao palco
+  P.frota.forEach(v => {
+    if (!SITE.vars.generico || !v || !v.pub || SITE.cenIds.includes(v.id) || !/^[A-Za-z0-9_-]{1,40}$/.test(String(v.id || ''))) return;
+    keep.push({ id: String(v.id), generico: true, tab: '', name: '', short: '', seats: 0, sub: '', groups: [], photos: [], chips: [] });
+  });
+  if (!keep.length) return;
   keep.sort((a, b) => { const ia = ord.indexOf(a.id), ib = ord.indexOf(b.id); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
   // T38: o que o Carlos publica no painel (nome, lugares, poltrona, fotos) vale no site; o cenário 3D segue o da TLH
   const POLN = { leito: 'leito', semi: 'semi-leito', exec: 'executivo', conv: 'convencional' };
@@ -4825,14 +4856,29 @@ const T0 = performance.now();
     const n = parseInt(d.lugares, 10);
     if (n > 0 && n < 200) { b.seats = n; b.sub = [`${n} lugares${POLN[d.pol] ? ' ' + POLN[d.pol] : ''}`, TIPN[d.tipo]].filter(Boolean).join(' · ');
       const pl = POLN[d.pol] ? ' ' + POLN[d.pol] : '';
-      (b.chips || []).forEach(c => { if (c[0] === 'seat') c[1] = `${n} lugares${pl}`; });
-      (b.groups || []).forEach(g => (g.items || []).forEach(it => { if (it[0] === 'seat') it[1] = `${n} poltronas${pl}`; })); }
+      (b.chips || []).forEach(c => { if (c[0] === 'seat' || c[0] === 'seat2') c[1] = `${n} lugares${pl}`; });
+      (b.groups || []).forEach(g => (g.items || []).forEach(it => { if (it[0] === 'seat' || it[0] === 'seat2') it[1] = `${n} poltronas${pl}`; })); }
     const fotos = (d.fotos || []).map(f => {
       const m = /^assets\/([A-Za-z0-9_\/-]+)\.webp$/.exec(f.s || ''), k = /^\/midia\/([A-Za-z0-9_-]+)\.webp$/.exec(f.s || '');
       const img = m ? m[1] : k ? '../midia/' + k[1] : null;   // as telas montam assets/<img>.webp
       return img ? [img, String(f.l || nome || b.name), ''] : null;
     }).filter(Boolean);
     if (fotos.length) b.photos = fotos;
+    if (b.generico) {   // T39: sem os textos da TLH, a ficha sai do que o painel publicou (lugares, itens a bordo, extras)
+      const nm = nome || ({ van: 'Van', micro: 'Micro-ônibus' }[d.tipo] || 'Ônibus');
+      b.name = nm; b.tab = nm.length > 22 ? nm.slice(0, 21) + '…' : nm; b.short = nm.length > 14 ? nm.slice(0, 13) + '…' : nm;
+      if (!b.sub) b.sub = TIPN[d.tipo] || 'fretamento';
+      const ICB = { wc: 'wc', gel: 'fridge', copa: 'coffee', bag: 'bag', bagf: 'bag', net: 'wifi', usb: 'usb', ar: 'ac', tv: 'monitor', porta: 'bus', escada: 'walk' };
+      const bd = Array.isArray(d.bordo) ? d.bordo : d.bordo && typeof d.bordo === 'object' ? Object.keys(d.bordo).filter(k => d.bordo[k] && d.bordo[k].on).map(k => [k, d.bordo[k].t]) : [];
+      const its = bd.filter(x => Array.isArray(x) && ICB[x[0]] && String(x[1] || '').trim()).map(x => [ICB[x[0]], String(x[1]).trim().slice(0, 60)])
+        .concat((Array.isArray(d.extras) ? d.extras : []).map(x => String((x && x.n) || (typeof x === 'string' ? x : '')).trim().slice(0, 60)).filter(Boolean).map(t => ['star', t]));
+      const pl = POLN[d.pol] ? ' ' + POLN[d.pol] : '', f0 = b.photos[0] ? b.photos[0][0] : '';
+      const seat = b.seats ? [['seat2', `${b.seats} lugares${pl}`, Object.assign({ t: `${b.seats} lugares${pl}`, d: '' }, f0 ? { img: f0, f: [0.5, 0.5], z: 1 } : {})]] : [];
+      b.chips = seat.concat(its.map(([ic, t]) => [ic, t, { t, d: '' }]));
+      if (!b.chips.length) b.chips = [['bus', b.sub, { t: nm, d: '' }]];
+      b.groups = [{ title: 'Conforto', items: b.seats ? [['seat2', `${b.seats} poltronas${pl}`]] : [] }, { title: 'A bordo', items: its }].filter(g => g.items.length);
+      if (!b.groups.length) b.groups = [{ title: 'Veículo', items: [['bus', b.sub]] }];
+    }
   });
   // T41: logo nova só depois que a TLH aprova na fila /tlh
   const lg = P.empresa && /^\/midia\/[A-Za-z0-9_-]+\.webp$/.test(P.empresa.logo || '') ? P.empresa.logo : '';
@@ -4842,6 +4888,20 @@ const T0 = performance.now();
 } catch (e) {} })();
 let current = SITE.fleet[0];
 const busById = id => SITE.fleet.find(b => b.id === id);
+// T39: foto do cartão (a lateral da TLH ou, no veículo sem cenário, a 1ª foto publicada) e o ônibus que fica no cenário 3D
+const busImg = b => b.side ? `assets/bus/${b.side}.webp` : (b.photos && b.photos[0] ? `assets/${b.photos[0][0]}.webp` : '');
+const sceneBusId = id => { const b = busById(id); return b && !b.generico ? id : ((SITE.fleet.find(x => !x.generico) || {}).id || SITE.cenIds[0]); };
+function stageFoto() {
+  const g = $('#stGen'); if (!g) return;
+  const on = !!current.generico, f = current.photos[0], im = g.querySelector('img'), tx = g.querySelector('p');
+  g.hidden = !on; root.classList.toggle('gen-on', on);
+  const lb = on ? 'Ver fotos' : 'Ver por dentro', none = on && !f;
+  [['#stInside', 'span'], ['#insideBtn'], ['#infoInside']].forEach(([q, k]) => { const el = $(q); if (!el) return; (k ? el.querySelector(k) : el).textContent = lb; el.hidden = none; });
+  if (!on) return;
+  im.hidden = !f; tx.hidden = !!f;
+  if (f) { const src = `assets/${f[0]}.webp`; if (im.getAttribute('src') !== src) im.src = src; im.alt = `Foto do ${current.name}`; }
+  else tx.textContent = `${current.name}: fotos em breve`;
+}
 const TEST = /[?&]teste\b/.test(location.search);
 const worldOn = () => typeof World !== 'undefined' && World.ready;
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -4948,7 +5008,7 @@ function fillStatic() {
     <div><dt>WhatsApp</dt><dd>${esc(SITE.whatsappLabel)}</dd></div><div><dt>Instagram</dt><dd>@${esc(ig)}</dd></div></dl>
     ${credits.length ? `<p class="credits">Fotos dos destinos: ${credits.map(esc).join(' · ')}.</p>` : ''}`;
   $('#foot').innerHTML = `<span>© ${new Date().getFullYear()} ${esc(SITE.brand.name)}</span><span>CNPJ ${esc(co.cnpj)}</span><span>ANTT ${esc(SITE.antt)}</span>${SITE.cadastur ? `<span>Cadastur ${esc(SITE.cadastur)}</span>` : ''}<a href="privacidade.html">Privacidade</a>${window.CT_LEVE ? '<a href="?completo">Versão completa</a>' : '<a href="?leve">Versão leve</a>'}<a href="termos.html">Termos de uso</a>`;
-  renderHero(); renderPhotos(); renderPackages(); renderOps();
+  renderHero(); renderPhotos(); renderPackages(); renderOps(); stageFoto();
 }
 function renderHero() {
   const b = current;
@@ -5058,6 +5118,10 @@ function chipIndex(bus, ic) {
 }
 function busSpecs(id) {
   const j = id === 'g8' ? 2 : 3, bus = busById(id);
+  if (bus.generico) return bus.chips.map((c, i) => {   // T39: sem a tabela de comparação da TLH, a ficha lista o que o painel publicou
+    const inner = `${icon(c[0])}<span><small>${i === 0 && bus.seats ? 'Lugares' : 'A bordo'}</small>${esc(c[1])}</span>`;
+    return `<li class="${(c[2] || {}).img ? 'cp' : ''}">${(c[2] || {}).img ? `<button type="button" data-cp="${id}:${i}" aria-haspopup="dialog">${inner}${icon('photos', 'tpc-z')}</button>` : inner}</li>`;
+  }).join('');
   return (SITE.compare || []).map(row => {
     const v = row[j], none = !v || v === '—', ci = none ? -1 : chipIndex(bus, row[0]);
     const inner = `${icon(row[0])}<span><small>${esc(row[1])}</small>${none ? 'Não tem' : esc(v)}</span>`;
@@ -5069,7 +5133,7 @@ function pickCardHTML(id) {
   const e = destInfo ? estimate(destInfo, id, trip.days, trip.people) : null;   // v23: o valor entra junto da ficha, pequeno e por dia
   return `<li class="tpc${on ? ' on' : ''}" data-bus="${id}">
     <button type="button" class="tpc-sel" data-pick="${id}" aria-pressed="${on}">
-      <span class="tpc-img"><img src="assets/bus/${bus.side}.webp" alt="" loading="lazy" decoding="async"></span>
+      <span class="tpc-img${bus.generico ? ' gen' : ''}">${busImg(bus) ? `<img src="${busImg(bus)}" alt="" loading="lazy" decoding="async">` : ''}</span>
       <span class="tpc-tx"><b>${esc(bus.tab)}</b><small>${esc(bus.sub)}</small></span>
       <span class="tpc-st">${on ? `${icon('check')}No cenário` : 'Ver no cenário'}</span>
     </button>
@@ -5082,9 +5146,9 @@ function pickHTML(r) {
   return `<div class="trip-pick" id="tripPick">
     <p class="tp-h">Escolha o ônibus e envie a viagem</p>
     ${counterHTML()}
-    <ul class="tp-cards" aria-label="Os dois ônibus">${BUS_ORDER().map(pickCardHTML).join('')}</ul>
-    <p class="tp-swipe">${icon('swipe')}deslize para ver o outro ônibus</p>
-    <p class="tp-both">${esc(SITE.compareBoth || '')} Sem compromisso: a ${esc(SITE.brand.name)} responde com o valor fechado.</p>
+    <ul class="tp-cards" aria-label="${SITE.fleet.length === 2 ? 'Os dois ônibus' : 'Os veículos'}">${BUS_ORDER().map(pickCardHTML).join('')}</ul>
+    ${SITE.fleet.length > 1 ? `<p class="tp-swipe">${icon('swipe')}${SITE.fleet.length === 2 ? 'deslize para ver o outro ônibus' : 'deslize para ver os outros'}</p>` : ''}
+    <p class="tp-both">${SITE.fleet.length === 2 && !SITE.fleet.some(b => b.generico) ? esc(SITE.compareBoth || '') : ''} Sem compromisso: a ${esc(SITE.brand.name)} responde com o valor fechado.</p>
   </div>`;
 }
 // atualiza o painel em destaque sem redesenhar o bloco (contagens, ônibus do cenário e os links do WhatsApp)
@@ -5114,7 +5178,7 @@ function priceHTML(r) {
       return `<span class="pc-r${none ? ' no' : ''}${best ? ' up' : ''}">${icon(row[0])}<span><small>${esc(row[1])}</small>${none ? '—' : esc(v)}</span></span>`;
     }).join('');
     return `<li class="pc${on ? ' on' : ''}${id === 'g8' ? ' top' : ''}" style="--col:${col + 1}" data-bus="${id}" role="button" tabindex="0" aria-pressed="${on}">
-      <span class="pc-ph"><span class="pc-tag">${esc(pr.bus[id].tag)}</span><img src="assets/bus/${bus.side}.webp" alt="" loading="lazy" decoding="async"></span>
+      <span class="pc-ph"><span class="pc-tag">${esc((pr.bus[id] || {}).tag || '')}</span>${busImg(bus) ? `<img src="${busImg(bus)}" alt="" loading="lazy" decoding="async">` : ''}</span>
       <span class="pc-hd"><b class="pc-name">${esc(bus.short)}</b><small class="pc-sub">${esc(bus.sub)}</small></span>
       <span class="pc-pr"><span class="pc-from">a partir de</span><span class="pc-price">${brl(e.perDay)}<small> por dia</small></span><span class="pc-pp">≈ ${brl(e.perPerson)} por pessoa</span></span>
       ${cmp}
@@ -5172,6 +5236,13 @@ function morph(box, html) {
   }
   setTimeout(() => box.querySelectorAll('.ri-in').forEach(el => el.classList.remove('ri-in')), 520);
 }
+// T47: o aviso do mapa diz como mexer (no celular: tocar abre o mapa grande; lá, um dedo move)
+function mapHint() {
+  const o = RouteMap.origin, d = RouteMap.dest, h = $('#rmHint'), big = root.classList.contains('rm-full-on');
+  const como = !coarse ? 'arraste para mover' : big ? 'arraste com um dedo para mover' : 'toque no mapa para abrir e mover';
+  h.textContent = (o ? (d ? 'Toque numa cidade: saída, destino ou parada' : 'Toque no destino') : (coarse ? 'Toque na cidade de saída' : 'Clique na cidade de saída')) + ' · ' + como;
+  h.classList.toggle('off', !!d && !(coarse && !big));
+}
 function paintRoute() {
   const { r, typed } = lastRoute;
   const o = RouteMap.origin, d = RouteMap.dest;
@@ -5185,8 +5256,7 @@ function paintRoute() {
   if (document.activeElement !== routeOrigin) $('#rtOName').textContent = o ? RouteMap.short(o) : (routeOrigin.value.trim() || 'escolher');
   if (document.activeElement !== routeDest) $('#rtDName').textContent = d ? RouteMap.short(d) : (routeDest.value.trim() || (o ? 'escolher' : '—'));
   $('#rtLine').classList.toggle('has-o', !!o); $('#rtLine').classList.toggle('has-d', !!d);
-  $('#rmHint').textContent = o ? (d ? 'Toque numa cidade: saída, destino ou parada' : 'Toque no destino, ou numa cidade do mapa') : (coarse ? 'Toque na cidade de saída · dois dedos movem o mapa' : 'Clique na cidade de saída · arraste para mover');
-  $('#rmHint').classList.toggle('off', !!d);
+  mapHint();
   morph($('#routeInfo'), routeInfoHTML(destInfo || r, typed));
   pickVisKick();
   $('#itin').classList.toggle('off', stopsAsked === 'no' || stopsAsked === 'ok');
@@ -5748,7 +5818,8 @@ const MapFull = (() => {
   });
   function open(opts = {}) {
     if (on) return; on = true; onClose = opts.onClose || null; manual = null;
-    dock.appendChild(map); full.hidden = false; root.classList.add('rm-full-on');
+    try { history.scrollRestoration = 'manual'; history.pushState({ ctMap: 1 }, ''); } catch (e) { /* T47: o "voltar" do celular fecha o mapa em vez de sair do site */ }
+    dock.appendChild(map); full.hidden = false; root.classList.add('rm-full-on'); mapHint();
     RouteMap.setFull(true);
     requestAnimationFrame(() => { full.classList.add('on'); RouteMap.recenter(); });
     setTimeout(() => { if (on && worldOn()) World.stop(); }, 320);   // v12: o mapa cobre a tela: o cenário para por trás
@@ -5758,7 +5829,8 @@ const MapFull = (() => {
   }
   function close(scrollTo) {
     if (!on) return; on = false; manual = null;
-    full.classList.remove('on'); root.classList.remove('rm-full-on');
+    try { if (history.state && history.state.ctMap) history.back(); } catch (e) { /* sem histórico */ }
+    full.classList.remove('on'); root.classList.remove('rm-full-on'); mapHint();
     if (worldOn() && !root.classList.contains('in-tour')) World.start();
     RouteMap.setFull(false); RouteMap.setAdding(stopsAsked === 'adding');
     setTimeout(() => { full.hidden = true; home.insertBefore(map, homeNext); RouteMap.recenter(); if (scrollTo) keepMapInView(); if (onClose) onClose(); }, 240);
@@ -5781,6 +5853,8 @@ const MapFull = (() => {
     applyRoute(r, routeDest.value, 'remove'); place();
   });
   $('#rmExpand').addEventListener('click', () => open());
+  map.addEventListener('rmwantfull', () => { if (!on) { open({ focus: false }); track('map_full_touch', {}); } });   // T47
+  addEventListener('popstate', () => { if (on) close(false); });
   document.addEventListener('keydown', e => { if (on && e.key === 'Escape' && !sg.open) close(false); });
   return { open, close, place, ready, get on() { return on; }, get mode() { return mode; } };
 })();
@@ -6100,10 +6174,10 @@ function selectBus(id, via = 'tab', focus) {
   current = b;
   try { ChipPop.close(); } catch (e) { /* ainda não iniciado */ }
   $$('.pick').forEach(t => { const on = t.dataset.id === id; t.setAttribute('aria-selected', on ? 'true' : 'false'); t.tabIndex = on ? 0 : -1; if (on && focus) t.focus(); });
-  placeInk(); refreshWaLinks(); renderHero(); renderPhotos(); renderOps(); renderPackages();
+  placeInk(); refreshWaLinks(); renderHero(); renderPhotos(); renderOps(); renderPackages(); stageFoto();
   if (lastRoute.r) { if (destInfo) { repaintPrice(); refreshWaLinks(); } else paintRoute(); }
   if (worldOn()) World.setBus(id); else if (window.__noGlBus) window.__noGlBus(id);
-  if (typeof Tour3D !== 'undefined' && Tour3D.isOpen()) { loadShow($('#tourLoad')); Tour3D.open(b).then(() => requestAnimationFrame(() => requestAnimationFrame(() => loadDone($('#tourLoad'))))); }
+  if (typeof Tour3D !== 'undefined' && Tour3D.isOpen() && !b.generico) { loadShow($('#tourLoad')); Tour3D.open(b).then(() => requestAnimationFrame(() => requestAnimationFrame(() => loadDone($('#tourLoad'))))); }
   track('bus_select', { bus: id, via });
 }
 const stepBus = (dir, via) => { const i = SITE.fleet.indexOf(current); selectBus(SITE.fleet[(i + dir + SITE.fleet.length) % SITE.fleet.length].id, via); };
@@ -6199,7 +6273,7 @@ const ChipPop = (() => {
     $('#cpKicker').innerHTML = `${icon(c[0])}<span>${esc(bus.short)} · ${idx + 1} de ${bus.chips.length}</span>`;
     $('#cpTitle').textContent = I.t || c[1];
     $('#cpText').textContent = I.d || '';
-    $('#cpNext').querySelector('span').textContent = idx < bus.chips.length - 1 ? bus.chips[idx + 1][1] : 'Ver por dentro';
+    $('#cpNext').querySelector('span').textContent = idx < bus.chips.length - 1 ? bus.chips[idx + 1][1] : bus.generico ? (bus.photos.length ? 'Ver fotos' : 'Fechar') : 'Ver por dentro';
     $('#cpPrev').disabled = idx === 0;
     $$('#heroChips .chip').forEach((b, i) => b.classList.toggle('on', bus === current && i === idx));
   }
@@ -7688,6 +7762,10 @@ function loadShow(el) { el.hidden = false; el.classList.remove('off'); }
 let entering = false;
 async function enterBus() {
   if (entering) return;
+  if (current.generico) {   // T39: sem passeio por dentro ainda: abre as fotos publicadas no painel
+    tutDone('tour'); track('tour_open', { bus: current.id, mode: 'fotos' });
+    if (current.photos.length) openLightbox(current.photos, 0); return;
+  }
   if (Tour3D.stub) { // 360° ainda não publicado: fotos reais do interior em sequência
     tutDone('tour'); track('tour_open', { bus: current.id, mode: 'fotos' });
     openLightbox(current.photos.filter(p => !/-ext$/.test(p[0])), 0); return;
@@ -7755,9 +7833,9 @@ measureStage(); applyStage();
 // v23: todas as fotos do topo (chips, fotos do ônibus, cartões) entram antes de o cenário aparecer (o "carregando cenário" espera)
 const PRE = [];
 const preImg = src => new Promise(res => { const im = new Image(); im.decoding = 'async'; im.onload = im.onerror = () => res(); im.src = src; PRE.push(im); });
-const preloadPhotos = b => Promise.all([...b.photos.map(([img]) => preImg(`assets/${img}.webp`)), ...b.chips.map(c => (c[2] || {}).img).filter(Boolean).map(n => preImg(`assets/${n}.webp`)), preImg(`assets/bus/${b.side}.webp`)]);
+const preloadPhotos = b => Promise.all([...b.photos.map(([img]) => preImg(`assets/${img}.webp`)), ...b.chips.map(c => (c[2] || {}).img).filter(Boolean).map(n => preImg(`assets/${n}.webp`)), ...(busImg(b) ? [preImg(busImg(b))] : [])]);
 // v12: todas as fotos que aparecem logo (ônibus, hotéis, restaurantes, destinos) entram durante o "Carregando cenário", com a porcentagem
-const mediaList = () => { const L = new Set(); SITE.fleet.forEach(b => { b.photos.forEach(([img]) => L.add(`assets/${img}.webp`)); b.chips.forEach(c => { const n = (c[2] || {}).img; if (n) L.add(`assets/${n}.webp`); }); L.add(`assets/bus/${b.side}.webp`); });
+const mediaList = () => { const L = new Set(); SITE.fleet.forEach(b => { b.photos.forEach(([img]) => L.add(`assets/${img}.webp`)); b.chips.forEach(c => { const n = (c[2] || {}).img; if (n) L.add(`assets/${n}.webp`); }); if (busImg(b)) L.add(busImg(b)); });
   ['hotel_capital', 'hotel_cidade', 'hotel_lago', 'hotel_pousada', 'hotel_praia', 'hotel_serra', 'rest_buffet', 'rest_cafe', 'rest_churrascaria', 'rest_colonial', 'rest_italiano', 'rest_mar', 'rest_parrilla'].forEach(n => L.add(`assets/ilus/${n}.webp`));
   if (SITE.destCredits) Object.keys(SITE.destCredits).forEach(n => L.add(`assets/dest/${n}.webp`)); return [...L]; };
 function bgPhotos() {   // v12b: fotos dos eventos e destinos, 2 por vez, depois do carregando
@@ -7769,7 +7847,7 @@ function bgPhotos() {   // v12b: fotos dos eventos e destinos, 2 por vez, depois
 const slowNet = () => { if (window.CT_LEVE) return true; try { const c = navigator.connection; if (c && (c.saveData || /(^|-)(2g|3g)$/.test(c.effectiveType || '') || (c.downlink && c.downlink < 3))) return true; } catch (e) { /* sem a API */ } return performance.now() > 7000; };
 function mediaReady() {
   const slow = slowNet(), full = mediaList();
-  const top = new Set([...current.photos.map(([img]) => `assets/${img}.webp`), ...current.chips.map(c => (c[2] || {}).img).filter(Boolean).map(n => `assets/${n}.webp`), `assets/bus/${current.side}.webp`]);
+  const top = new Set([...current.photos.map(([img]) => `assets/${img}.webp`), ...current.chips.map(c => (c[2] || {}).img).filter(Boolean).map(n => `assets/${n}.webp`), busImg(current)]);
   const list = slow ? full.filter(u => top.has(u)) : full, n = list.length; let done = 0, i = 0; const lt = $('#ldText');
   if (slow) setTimeout(() => { let k = 0; const rest = full.filter(u => !top.has(u)); const w = () => k < rest.length ? preImg(rest[k++]).then(w) : null; w(); w(); }, 2500);
   const tick = () => { done++; if (lt) lt.textContent = `Carregando cenário e fotos ${Math.min(99, Math.round(done / n * 100))}%`; };
@@ -7822,7 +7900,7 @@ if (location.hash === '#debug') {
     SITE.fleet.filter(b => b !== current).forEach(preloadPhotos);
     World.on('arrived', id => { track('bus_arrived', { bus: id }); endIntro('chegou'); });
     if (TEST) window.__ct = { World, Tour3D, selectBus, RouteMap, enterBus, Quote, setOrigin, pickMenu, onMapPick, renderDestCard, renderPackages, applyRoute, goDest: (o, d) => { setOrigin(RouteMap.find(o).key, "test"); const r = RouteMap.setDest(RouteMap.find(d).key); routeDest.value = RouteMap.short(RouteMap.dest); applyRoute(r, routeDest.value, "test"); } };
-    World.setBus(current.id); activeBlk = null; onScroll(); World.start();
+    World.setBus(sceneBusId(current.id)); activeBlk = null; onScroll(); World.start();
     root.classList.add('gl-on');
     StageCopy.on();
     // o cenário inteiro (ônibus + jardim atrás dos blocos) sai do borrado de uma vez, quando o 1º quadro com o ônibus está pronto
@@ -7838,16 +7916,17 @@ if (location.hash === '#debug') {
     $('#sceneCv').hidden = true;
     if (window.CT_LEVE && typeof World !== 'undefined' && World.placeStatic) {
       const sc = $('#scene'), sb = $('#sceneBus');
-      World.placeStatic(sc, sb, current.id);
-      window.__noGlBus = id => World.placeStatic(sc, sb, id);
-      addEventListener('resize', () => World.placeStatic(sc, sb, current.id));
+      const st = id => { World.placeStatic(sc, sb, sceneBusId(id)); if ((busById(id) || {}).generico) sb.hidden = true; };   // T39: veículo sem cenário não mostra o ônibus de outro modelo
+      st(current.id);
+      window.__noGlBus = st;
+      addEventListener('resize', () => st(current.id));
     } else if (typeof World !== 'undefined' && World.placeLoop) {
       const v = document.createElement('video'); v.id = 'sceneLoop'; v.className = 'scene-loop'; v.muted = true; v.loop = true; v.autoplay = true; v.playsInline = true;
       v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('aria-hidden', 'true');
-      $('#scene').appendChild(v); World.placeLoop(v, current.id);
-      window.__noGlBus = id => World.placeLoop(v, id);
-      addEventListener('resize', () => World.placeLoop(v, current.id));
-    } else if (typeof World !== 'undefined' && World.placeStatic) World.placeStatic($('#scene'), $('#sceneBus'), current.id);
+      $('#scene').appendChild(v); World.placeLoop(v, sceneBusId(current.id));
+      window.__noGlBus = id => World.placeLoop(v, sceneBusId(id));
+      addEventListener('resize', () => World.placeLoop(v, sceneBusId(current.id)));
+    } else if (typeof World !== 'undefined' && World.placeStatic) World.placeStatic($('#scene'), $('#sceneBus'), sceneBusId(current.id));
     loadDone($('#stLoad'));
     setTimeout(() => endIntro('sem-webgl'), 700);
   }
