@@ -135,3 +135,8 @@ _patch_t40.py
 _patch_leve.py
 _patch_t38.py
 dados-teste/
+
+# cache do Python (o pytest cria sozinho)
+__pycache__/
+*.pyc
+.pytest_cache/

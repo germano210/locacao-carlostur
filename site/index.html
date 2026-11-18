@@ -1805,27 +1805,62 @@ button, a, .opt { touch-action: manipulation; }
 .dc-atph { flex: none; width: 64px; height: 64px; object-fit: cover; border-radius: 12px; }
 </style>
 <script>
-/* Modo leve (17/11): aparelho fraco não carrega o cenário 3D nem o vídeo do topo. */
+/* 17/11 (pedido do John): a "versão leve" saiu do site. Aparelho sem força para o cenário vê só o aviso de incompatível
+   e o WhatsApp da Carlos Tur (window.CT_INCOMP). O modo leve ficou só para o site "ao vivo" dentro do painel (?emb).
+   ?completo força o site inteiro (teste da TLH); ?leve mostra o aviso. */
+window.CT_INCOMP = false;
 window.CT_LEVE = (() => {
   try {
     const q = new URLSearchParams(location.search);
+    if (q.has('emb')) return true;   // painel v7: o site "ao vivo" dentro do painel vai sempre leve, sem lembrar
     if (q.has('completo')) { localStorage.setItem('ct-leve', '0'); return false; }
-    if (q.has('leve')) { localStorage.setItem('ct-leve', '1'); return true; }
-    const m = localStorage.getItem('ct-leve'); if (m === '1') return true; if (m === '0') return false;
+    if (q.has('leve')) { window.CT_INCOMP = true; return true; }
+    const m = localStorage.getItem('ct-leve'); if (m === '1') localStorage.removeItem('ct-leve'); if (m === '0') return false;   // quem escolheu "Versão leve" antes não fica preso no aviso
   } catch (e) { /* sem armazenamento */ }
-  const n = navigator, c = n.connection || {};
-  if ((n.deviceMemory || 8) <= 2 || (n.hardwareConcurrency || 8) <= 2 || c.saveData) return true;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
+  const n = navigator, incomp = () => { window.CT_INCOMP = true; return true; };
+  if ((n.deviceMemory || 8) <= 2 || (n.hardwareConcurrency || 8) <= 2) return incomp();
   try {
-    const g = document.createElement('canvas').getContext('webgl2'); if (!g) return true;
+    const g = document.createElement('canvas').getContext('webgl2'); if (!g) return incomp();
     const d = g.getExtension('WEBGL_debug_renderer_info'), r = d ? String(g.getParameter(d.UNMASKED_RENDERER_WEBGL)) : '';
     const x = g.getExtension('WEBGL_lose_context'); if (x) x.loseContext();
-    if (/swiftshader|llvmpipe|software|basic render|gma/i.test(r)) return true;   // GPU por software ou muito antiga
-  } catch (e) { return true; }
+    if (/swiftshader|llvmpipe|software|basic render|gma/i.test(r)) return incomp();   // GPU por software ou muito antiga
+  } catch (e) { return incomp(); }
   return false;
 })();
 if (window.CT_LEVE) document.documentElement.classList.add('leve');
+if (window.CT_INCOMP) {
+  document.documentElement.classList.add('incomp');
+  // o script principal do site não roda (ver o começo dele); este aviso ignora só esse erro proposital
+  addEventListener('error', e => { if (String(e.message || '').indexOf('CT_INCOMP') >= 0) e.preventDefault(); });
+  document.addEventListener('DOMContentLoaded', () => {
+    let wa = '5551997976191';
+    try { const d = String(((window.CT_PUB || {}).empresa || {}).wa || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (d.length === 10 || d.length === 11) wa = '55' + d; } catch (e) { /* sem dados */ }
+    const href = 'https://wa.me/' + wa + '?text=' + encodeURIComponent('Olá, Carlos Tur! Vim pelo site e quero um orçamento de fretamento.');
+    const m = document.createElement('main'); m.id = 'incomp'; m.setAttribute('aria-labelledby', 'incompT');
+    m.innerHTML = '<div class="ic-box"><svg class="ic-wm" viewBox="0 0 1339.3 100" role="img" aria-label="Carlos Tur"><use href="#wmSymbolPath" clip-path="url(#wmClip)" fill="none" stroke="currentColor" stroke-width="23" stroke-linejoin="miter" stroke-miterlimit="3"/></svg>'
+      + '<h1 id="incompT">Notamos que seu dispositivo é incompatível com nossa idealização.</h1><p>Tente novamente em outro dispositivo.</p>'
+      + '<a class="ic-wa" href="' + href + '" target="_blank" rel="noopener">Falar com a Carlos Tur no WhatsApp</a>'
+      + '<nav class="ic-leg" aria-label="Informações"><a href="privacidade.html">Privacidade</a><a href="termos.html">Termos de uso</a></nav></div>';
+    document.body.prepend(m);
+    m.querySelector('.ic-wa').addEventListener('click', () => {   // conta o contato no painel, sem nome, número ou IP (como os outros botões)
+      try { navigator.sendBeacon && navigator.sendBeacon('api/evento', new Blob([JSON.stringify({ tipo: 'wa', destino: '', dados: { f: 'incompativel' } })], { type: 'application/json' })); } catch (e) { /* sem servidor */ }
+    });
+  });
+}
 </script>
+<style>
+html.incomp, html.incomp body { overflow: auto !important; background: #0b1626; }
+html.incomp body > *:not(#incomp):not(svg) { display: none !important; }
+#incomp { min-height: 100vh; min-height: 100svh; display: grid; place-items: center; padding: 24px 18px; box-sizing: border-box; background: #0b1626 url(assets/scene3/plate23-lo.webp) center / cover no-repeat; font-family: Poppins, system-ui, sans-serif; }
+#incomp .ic-box { width: min(100%, 420px); background: #fff; color: #0b0b0c; border-radius: 24px; padding: 26px 22px 20px; display: grid; gap: 14px; text-align: center; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); }
+#incomp .ic-wm { width: 180px; height: auto; justify-self: center; color: #0b0b0c; }
+#incomp h1 { margin: 4px 0 0; font-size: 19px; line-height: 1.35; font-weight: 600; }
+#incomp p { margin: 0; font-size: 15px; color: #3d3d42; }
+#incomp .ic-wa { display: block; margin-top: 6px; padding: 15px 18px; border-radius: 999px; background: #17753f; color: #fff; font-weight: 600; font-size: 16px; text-decoration: none; }
+#incomp .ic-wa:focus-visible { outline: 3px solid #0b0b0c; outline-offset: 3px; }
+#incomp .ic-leg { display: flex; justify-content: center; gap: 16px; font-size: 13px; }
+#incomp .ic-leg a { color: #3d3d42; }
+</style>
 <style>
 html.leve * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 html.leve .scene-ph { filter: none !important; transform: none !important; }
@@ -2244,6 +2279,7 @@ html.leve .ld-text, html.leve .tut { background: rgba(8, 20, 40, .88) !important
 
 <script src="api/site.js"></script>
 <script>
+if (window.CT_INCOMP) throw new Error('CT_INCOMP: aparelho incompatível, só o aviso e o WhatsApp');
 /* =====================================================================
    Tw — linha do tempo no estilo GSAP (timeline().to/fromTo/set/call,
    posições "<", ">", "+=", "-=", stagger, eases power/expo/back/sine),
@@ -4884,6 +4920,16 @@ SITE.cenIds = SITE.fleet.map(b => b.id);   // T39: modelos que têm cenário 3D 
   const lg = P.empresa && /^\/midia\/[A-Za-z0-9_-]+\.webp$/.test(P.empresa.logo || '') ? P.empresa.logo : '';
   if (lg) { const w = document.querySelector('.wordmark'); if (w) { const im = new Image(); im.src = lg; im.alt = ''; im.className = 'wordmark wm-img'; w.replaceWith(im); } }
   SITE.fleet = keep;
+  // painel v7: roteiros ligados na aba "Roteiros" do painel substituem os do site (sem a aba, ficam os do site)
+  if (Array.isArray(P.roteiros)) {
+    const KD = { serra: 'serra', praia: 'praia', parque: 'parque' }, old = SITE.packages;
+    SITE.packages = P.roteiros.filter(r => r && r.titulo).map((r, i) => {
+      const o = old.find(x => x.titulo === r.titulo) || {};
+      if (r.src && r.cred) (SITE.rtCred = SITE.rtCred || []).push(r.cred);   // crédito da foto (não entra em destCredits: lá cada chave é um arquivo)
+      return { tipo: 'grupo', titulo: r.titulo, dest: r.dest || o.dest || '', dur: r.dur || o.dur || '', inclui: (r.inclui && r.inclui.length ? r.inclui : o.inclui) || [],
+        img: r.img || o.img || '', src: r.src || '', kind: KD[r.kind] || o.kind || 'cidade', ex: o.ex };
+    });
+  }
   if (P.disp && typeof P.disp === 'object') SITE.disp = P.disp;   // 12t (E57 A): disponibilidade marcada no painel (sem dado, nada aparece)
 } catch (e) {} })();
 let current = SITE.fleet[0];
@@ -5001,13 +5047,13 @@ function fillStatic() {
     <li><span class="trust-ic">${icon('shield')}</span><small>Registro na ANTT</small><b>${esc(SITE.antt)}</b></li>
     <li><span class="trust-ic">${icon('road')}</span><small>Na estrada desde ${SITE.since}</small><b>${yrs} anos</b></li>
     <li><span class="trust-ic">${icon('ig')}</span><small>Frota e viagens</small><b><a href="https://www.instagram.com/${encodeURIComponent(ig)}/" target="_blank" rel="noopener">@${esc(ig)}</a></b></li>`;
-  const credits = Object.values(SITE.destCredits || {}).filter(Boolean);
+  const credits = [...new Set(Object.values(SITE.destCredits || {}).concat(SITE.rtCred || []).filter(Boolean))];
   $('#company').innerHTML = `<div class="co-head"><h3>Dados da empresa</h3>${exTag(co.ex)}</div>
     <dl class="co-grid"><div><dt>Razão social</dt><dd>${esc(co.razao)}</dd></div><div><dt>CNPJ</dt><dd>${esc(co.cnpj)}</dd></div>
     <div><dt>Garagem</dt><dd>${esc(co.endereco)}</dd></div><div><dt>ANTT</dt><dd>${esc(SITE.antt)}</dd></div>
     <div><dt>WhatsApp</dt><dd>${esc(SITE.whatsappLabel)}</dd></div><div><dt>Instagram</dt><dd>@${esc(ig)}</dd></div></dl>
     ${credits.length ? `<p class="credits">Fotos dos destinos: ${credits.map(esc).join(' · ')}.</p>` : ''}`;
-  $('#foot').innerHTML = `<span>© ${new Date().getFullYear()} ${esc(SITE.brand.name)}</span><span>CNPJ ${esc(co.cnpj)}</span><span>ANTT ${esc(SITE.antt)}</span>${SITE.cadastur ? `<span>Cadastur ${esc(SITE.cadastur)}</span>` : ''}<a href="privacidade.html">Privacidade</a>${window.CT_LEVE ? '<a href="?completo">Versão completa</a>' : '<a href="?leve">Versão leve</a>'}<a href="termos.html">Termos de uso</a>`;
+  $('#foot').innerHTML = `<span>© ${new Date().getFullYear()} ${esc(SITE.brand.name)}</span><span>CNPJ ${esc(co.cnpj)}</span><span>ANTT ${esc(SITE.antt)}</span>${SITE.cadastur ? `<span>Cadastur ${esc(SITE.cadastur)}</span>` : ''}<a href="privacidade.html">Privacidade</a><a href="termos.html">Termos de uso</a>`;
   renderHero(); renderPhotos(); renderPackages(); renderOps(); stageFoto();
 }
 function renderHero() {

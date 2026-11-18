@@ -21,7 +21,9 @@ services:
   tunel:
     image: cloudflare/cloudflared:2026.10.7
     container_name: carlostur-teste-tunel
-    restart: "no"
-    command: tunnel --no-autoupdate --url http://carlostur:8000   # túnel rápido: sem conta, sem token
+    restart: on-failure   # se o túnel rápido falhar ao abrir (acontece), tenta de novo sozinho
+    # túnel rápido: sem conta, sem token. http2 em vez de QUIC: no Docker Desktop (Windows) e em muitas redes de casa o
+    # QUIC (UDP 7844) é bloqueado e o túnel fica em "failed to dial to edge with quic"; http2 usa TCP 443 e passa.
+    command: tunnel --no-autoupdate --protocol http2 --edge-ip-version 4 --url http://carlostur:8000
     depends_on:
       - carlostur

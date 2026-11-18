@@ -136,7 +136,8 @@ def test_sair_e_cabecalhos():
     assert c.post("/api/sair", headers=h(c)).status_code == 200
     assert c.get("/api/painel").status_code == 401
     r = cliente().get("/")
-    assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
+    assert "frame-ancestors 'self'" in r.headers["content-security-policy"]   # painel v7: só o próprio site emoldura
+    assert "frame-ancestors 'none'" in cliente().get("/painel").headers["content-security-policy"]
     assert cliente().get("/painel").headers["x-robots-tag"].startswith("noindex")
     assert "Disallow: /painel" in cliente().get("/robots.txt").text
 
@@ -241,3 +242,25 @@ def test_veiculo_novo_vai_ao_site_com_itens():
     assert d["bordo"] == [["ar", "Ar-condicionado"]] and d["extras"] == ["Porta-copos"]
     assert d["fotos"] == [{"s": "/midia/abc123.webp", "l": "Van"}]
     assert "vnova1" not in A.cenario_ids() and {"g8", "b2501"} <= set(A.cenario_ids())
+
+
+def test_roteiros_do_painel_e_site_emoldurado():
+    """Painel v7: roteiros ligados vão ao site (só os ligados, com foto do próprio site); o site pode ser emoldurado só pelo
+    mesmo endereço (site ao vivo no painel); painel e API continuam proibidos em quadro."""
+    c = pronto()
+    v = c.get("/api/painel").json()["versao"]
+    D = {"frota": [], "roteiros": [
+        {"id": "r1", "titulo": "Gramado", "dest": "Gramado", "destKey": "gramado", "dur": "1 dia", "inclui": ["a", "b", "c", "d", "e"],
+         "src": "assets/dest/gramado.webp", "cred": "Autor, CC BY", "site": True},
+        {"id": "r2", "titulo": "Fora", "site": False},
+        {"id": "r3", "titulo": "Foto de fora", "src": "https://x.y/z.webp", "cred": "?", "site": True}]}
+    assert c.put("/api/painel", json={"dados": D, "versao": v}, headers=h(c)).status_code == 200
+    R = cliente().get("/api/site").json()["roteiros"]
+    assert [r["titulo"] for r in R] == ["Gramado", "Foto de fora"]
+    assert R[0]["inclui"] == ["a", "b", "c", "d"] and R[0]["src"] == "assets/dest/gramado.webp" and R[0]["kind"] == "serra"
+    assert R[1]["src"] == "" and R[1]["cred"] == ""
+    p = cliente()
+    assert p.get("/").headers["x-frame-options"] == "SAMEORIGIN" and "frame-ancestors 'self'" in p.get("/").headers["content-security-policy"]
+    for u in ("/painel", "/api/site"):
+        r = p.get(u)
+        assert r.headers["x-frame-options"] == "DENY" and "frame-ancestors 'none'" in r.headers["content-security-policy"]

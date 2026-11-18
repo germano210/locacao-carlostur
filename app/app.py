@@ -254,11 +254,13 @@ async def guarda(request: Request, call_next):
                 return erro("Sessão inválida. Recarregue a página.", 403)
     r = await call_next(request)
     h = r.headers
-    h["Content-Security-Policy"] = CSP
+    # painel v7: o painel mostra o site "ao vivo" num quadro; só o próprio site pode ser emoldurado, e só pelo mesmo endereço
+    so_mesmo = not p.startswith(("/painel", "/api", "/tlh"))
+    h["Content-Security-Policy"] = CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'") if so_mesmo else CSP
     h["X-Content-Type-Options"] = "nosniff"
     h["Referrer-Policy"] = "strict-origin-when-cross-origin"
     h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-    h["X-Frame-Options"] = "DENY"
+    h["X-Frame-Options"] = "SAMEORIGIN" if so_mesmo else "DENY"
     h["Cross-Origin-Opener-Policy"] = "same-origin"
     if HTTPS:
         h["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
@@ -476,7 +478,36 @@ def publico(D):
                                              "logo:" + hashlib.sha256(lg.encode()).hexdigest()[:12])
         emp["logo"] = lg if ok else ""
     return {"frota": pub, "ordemPub": D.get("ordemPub") or [p["id"] for p in pub], "disp": D.get("disp") or {},
-            "empresa": emp}
+            "empresa": emp, "roteiros": roteiros_pub(D)}
+
+
+_CID = {"m": 0.0, "k": {}}
+
+
+def roteiros_pub(D):
+    """Painel v7: roteiros ligados no painel ("no site"); None = o painel ainda não tem a aba e o site usa os dele."""
+    L = D.get("roteiros")
+    if not isinstance(L, list):
+        return None
+    try:  # tipo do lugar (serra, praia, cidade...) para o ícone do cartão, a partir de site/cidades.json
+        f = SITE / "cidades.json"; m = f.stat().st_mtime
+        if _CID["m"] != m:
+            _CID.update(m=m, k={c[0]: c[4] for c in json.loads(f.read_text(encoding="utf-8")).get("c", []) if len(c) > 4})
+    except (OSError, ValueError):
+        pass
+    out = []
+    for r in L:
+        if not (isinstance(r, dict) and r.get("site") is True and str(r.get("titulo") or "").strip()):
+            continue
+        src = str(r.get("src") or "")
+        if not re.fullmatch(r"assets/[A-Za-z0-9_/-]+\.webp", src):
+            src = ""
+        out.append({"titulo": str(r["titulo"]).strip()[:80], "dest": str(r.get("dest") or "")[:60], "dur": str(r.get("dur") or "")[:30],
+                    "inclui": [str(x)[:60] for x in (r.get("inclui") or []) if str(x).strip()][:4],
+                    "src": src, "cred": str(r.get("cred") or "")[:160] if src else "",
+                    "img": re.sub(r"[^a-z0-9-]", "", str(r.get("img") or ""))[:30],
+                    "kind": _CID["k"].get(str(r.get("destKey") or ""), "")})
+    return out[:30]
 
 
 @app.get("/api/painel")
@@ -701,6 +732,9 @@ def tlh_pedidos(req: Request):
         pub = v.get("pub") if isinstance(v, dict) else None
         if pub and v.get("id") not in cen:
             fotos = [f.get("s") for f in pub.get("fotos") or [] if isinstance(f, dict) and f.get("s")]
+            cena = (v.get("cena") or {}).get("s") if isinstance(v.get("cena"), dict) else ""
+            if isinstance(cena, str) and cena.startswith("/midia/"):
+                fotos = [cena] + fotos  # painel v7: foto de lado para a TLH recortar
             add("modelo:" + str(v["id"]), "modelo", pub.get("nome") or "Veículo sem nome",
                 f"{pub.get('lugares') or '?'} lugares · {len(fotos)} foto{'' if len(fotos) == 1 else 's'} · código {v['id']} (usar este id em SITE.fleet)",
                 quando, fotos=fotos[:12], passeio=v.get("passeio") or "")
