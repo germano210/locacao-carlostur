@@ -485,10 +485,10 @@ _CID = {"m": 0.0, "k": {}}
 
 
 def roteiros_pub(D):
-    """Painel v7: roteiros ligados no painel ("no site"); None = o painel ainda não tem a aba e o site usa os dele."""
+    """Painel v7 + T49: só os roteiros ligados no painel ("no site"); sem nenhum, o site esconde o bloco."""
     L = D.get("roteiros")
     if not isinstance(L, list):
-        return None
+        return []  # T49: sem roteiro cadastrado no painel, o site não mostra nenhum
     try:  # tipo do lugar (serra, praia, cidade...) para o ícone do cartão, a partir de site/cidades.json
         f = SITE / "cidades.json"; m = f.stat().st_mtime
         if _CID["m"] != m:

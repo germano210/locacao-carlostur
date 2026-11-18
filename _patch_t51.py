@@ -1,0 +1,19 @@
+"""T51 (artefato 9HaJSD): itens do ônibus numa linha que desliza, 'Ver por dentro' e 'Contato rápido' lado a lado (12u); seletor com vários veículos rola e marca o atual; #v-<id> abre no veículo (prévia do painel).
+Uso: python _patch_t51.py site"""
+import sys, pathlib, json
+I = pathlib.Path(sys.argv[1]) / "index.html"; s = I.read_text(encoding="utf-8")
+TAG = "_patch_t51.py"
+assert ("/*" + TAG + "*/") not in s, "já aplicado"
+HUNKS = json.loads("[{\"t\": \"insert\", \"old\": \"\", \"new\": \"/* 12u (E62 B): itens do ve\u00edculo numa linha que desliza; \\\"Ver por dentro\\\" e \\\"Contato r\u00e1pido\\\" lado a lado */\\n#heroChips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; scroll-padding-inline: 16px; }\\n#heroChips::-webkit-scrollbar { display: none; }\\n#heroChips li { flex: none; }\\n.hero-cta { grid-template-columns: 1fr 1fr; gap: 10px; }\\n.hero-cta > * { margin: 0; min-width: 0; }\\n/* 12u: com 3 ve\u00edculos ou mais o seletor vira uma fila que desliza (cada nome no seu tamanho) */\\n.picker.many { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; padding: 0 6px; }\\n.picker.many::-webkit-scrollbar { display: none; }\\n.picker.many .pick { flex: none; padding: 0 16px; scroll-snap-align: center; }\\n.picker.many .pick + .pick::before { display: none; }\", \"pre\": \".hero-cta .pill-ghost svg { width: 21px; height: 21px; color: #1aa35a; }\", \"post\": \"@media (hover: hover) { .hero-cta .pill-ghost:hover { background: #fafbfc; box-shadow: 0 1px 2px rgba(15, 23, 42, .10), 0 8px 22px rgba(15, 23, 42, .14); } }\", \"k\": 4}, {\"t\": \"replace\", \"old\": \"  const pick = $('#busPick');\", \"new\": \"  const pick = $('#busPick'); pick.classList.toggle('many', SITE.fleet.length > 2);\", \"pre\": \"  $('#since').textContent = 'desde ' + SITE.since;\", \"post\": \"  SITE.fleet.forEach((b, i) => {\", \"k\": 23}, {\"t\": \"replace\", \"old\": \"    t.setAttribute('aria-selected', i === 0 ? 'true' : 'false'); t.tabIndex = i === 0 ? 0 : -1;\", \"new\": \"    t.setAttribute('aria-selected', b === current ? 'true' : 'false'); t.tabIndex = b === current ? 0 : -1;\", \"pre\": \"    t.className = 'pick'; t.type = 'button'; t.setAttribute('role', 'tab'); t.id = 'pick-' + b.id;\", \"post\": \"    t.dataset.id = b.id; t.innerHTML = `<span class=\\\"pk-l\\\">${esc(b.tab)}</span><span class=\\\"pk-s\\\">${esc(b.short)}</span>`; t.setAttribute('aria-label', b.tab);\", \"k\": 24}, {\"t\": \"replace\", \"old\": \"  ink.style.transform = `translateX(${tr.left - pr.left + (tr.width - w) / 2}px)`;\", \"new\": \"  ink.style.transform = `translateX(${t.offsetLeft + (tr.width - w) / 2}px)`;\\n  if ($('#busPick').classList.contains('many')) { const p = $('#busPick'); p.scrollTo({ left: t.offsetLeft - (p.clientWidth - t.offsetWidth) / 2, behavior: 'smooth' }); }\", \"pre\": \"  ink.style.width = w + 'px';\", \"post\": \"}\", \"k\": 37}]")
+for h in HUNKS:   # trechos do artefato 9HaJSD (17/11), aplicados sobre o nosso site
+    if h["t"] == "insert":
+        a = h["pre"] + "\n" + h["post"]; assert s.count(a) == 1, (h["k"], s.count(a), a[:80])
+        s = s.replace(a, h["pre"] + "\n" + h["new"] + "\n" + h["post"])
+    else:
+        assert s.count(h["old"]) == 1, (h["k"], s.count(h["old"]), h["old"][:80])
+        s = s.replace(h["old"], h["new"])
+def rep(a, b):
+    global s; assert s.count(a) == 1, (s.count(a), a[:80]); s = s.replace(a, b)
+rep("let current = SITE.fleet[0];", "let current = SITE.fleet.find(b => location.hash === '#v-' + b.id) || SITE.fleet[0];   // T51: #v-<id> abre no veículo (site ao vivo do painel)")
+s = s.replace("</html>", "<!--/*" + TAG + "*/-->\n</html>", 1) if "</html>" in s else s + "\n<!--/*" + TAG + "*/-->\n"
+I.write_text(s, encoding="utf-8", newline="\n"); print(TAG, "aplicado:", len(HUNKS), "trechos")
