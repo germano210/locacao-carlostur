@@ -64,3 +64,14 @@ Sozinho ele não vê o app travado com o túnel de pé; por isso o monitor de fo
 
 ## Atualizar
 `git pull && docker compose up -d --build`. O banco e a mídia ficam em `dados/` e não são tocados.
+
+## Aparecer no Google (T55–T57)
+
+O site já manda para os buscadores: título e descrição com "fretamento de ônibus", "turismo", "excursões", "Carlos Tur" e a cidade; a ficha da empresa (JSON-LD, com o WhatsApp e o ano publicados no painel); `sitemap.xml` com datas; e o robô de busca vê o site inteiro (não cai no aviso de incompatível). O resto depende de cadastro:
+
+1. **Google Search Console** (search.google.com/search-console): "Adicionar propriedade" → **Domínio** `carlostur.com.br` → verificar pelo Cloudflare (registro TXT; o próprio Google oferece fazer sozinho no Cloudflare). Depois: **Sitemaps** → enviar `sitemap.xml`; **Inspeção de URL** → `https://carlostur.com.br/` → "Testar URL publicado" → ver a captura de tela (tem que aparecer o site, não o aviso) → "Solicitar indexação".
+2. **Perfil da Empresa no Google** (business.google.com), feito pelo Carlos ou com ele junto, porque o Google confirma por telefone, vídeo ou correspondência: categoria "Serviço de fretamento de ônibus" (e "Agência de turismo" como secundária), Santo Antônio da Patrulha, WhatsApp, horário, fotos dos ônibus e o site `https://carlostur.com.br`. É o que mais pesa em busca local ("fretamento de ônibus perto de mim", "excursão Santo Antônio da Patrulha").
+3. **Bing Webmaster Tools** (bing.com/webmasters): "Importar do Google Search Console". Cobre Bing, DuckDuckGo e o Copilot.
+4. Conferir a ficha: search.google.com/test/rich-results com o endereço do site (deve achar "Organização"/"Empresa local" sem erro).
+
+Leva de dias a semanas para aparecer. Buscas genéricas ("ônibus", "turismo") são dominadas por sites grandes; o realista é aparecer em "Carlos Tur", "carlostur" e nas buscas com a cidade ou a região. Avaliações no Perfil da Empresa e links de outros sites (prefeitura, escolas, grupos) ajudam mais que qualquer ajuste no código.

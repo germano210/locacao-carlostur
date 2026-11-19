@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Carlos Tur | Fretamento e turismo de ônibus</title>
-<meta name="description" content="Veja o ônibus da Carlos Tur, a rota real até o destino, roteiros prontos e monte o orçamento da viagem do seu grupo direto no WhatsApp.">
+<title>Carlos Tur · Fretamento de ônibus e turismo | Santo Antônio da Patrulha, RS</title>
+<meta name="description" content="Fretamento de ônibus para excursões e turismo em grupo com a Carlos Tur, de Santo Antônio da Patrulha (RS). Veja o ônibus por dentro, a rota e peça o orçamento no WhatsApp.">
 <meta property="og:title" content="Carlos Tur | desde 2001">
-<meta property="og:description" content="Ônibus inteiro para o seu grupo. Orçamento no WhatsApp.">
+<meta property="og:description" content="Fretamento de ônibus para o seu grupo. Orçamento no WhatsApp.">
 <meta property="og:image" content="https://carlostur.com.br/assets/og.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -1055,6 +1055,10 @@ html.in-tour .t7 ~ * .picker, html.in-tour .picker { box-shadow: 0 4px 16px rgba
 #heroChips li { flex: none; }
 .hero-cta { grid-template-columns: 1fr 1fr; gap: 10px; }
 .hero-cta > * { margin: 0; min-width: 0; }
+/* T58: lado a lado quando cabem; senão um embaixo do outro (tela estreita ou fonte do celular aumentada) */
+.hero-cta { display: flex; flex-wrap: wrap; }
+.hero-cta .pill-ghost svg { width: clamp(18px, 5vw, 21px); height: clamp(18px, 5vw, 21px); }
+.hero-cta > .pill { flex: 1 1 0; min-width: max-content; max-width: 100%; padding-inline: clamp(10px, 3vw, 16px); gap: 8px; font-size: clamp(13px, 3.7vw, 15px); }
 /* 12u: com 3 veículos ou mais o seletor vira uma fila que desliza (cada nome no seu tamanho) */
 .picker.many { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; padding: 0 6px; }
 .picker.many::-webkit-scrollbar { display: none; }
@@ -1831,6 +1835,7 @@ window.CT_LEVE = (() => {
     if (q.has('leve')) { window.CT_INCOMP = true; return true; }
     const m = localStorage.getItem('ct-leve'); if (m === '1') localStorage.removeItem('ct-leve'); if (m === '0') return false;   // quem escolheu "Versão leve" antes não fica preso no aviso
   } catch (e) { /* sem armazenamento */ }
+  if (/googlebot|google-inspectiontool|bingbot|adidxbot|duckduckbot|yandex|baiduspider|applebot|petalbot|slurp|lighthouse|\bbot\b|bot\/|crawler|spider/i.test(navigator.userAgent || '')) return true;   // T55: robô de busca vê o site leve, nunca o aviso
   const n = navigator, incomp = () => { window.CT_INCOMP = true; return true; };
   if ((n.deviceMemory || 8) <= 2 || (n.hardwareConcurrency || 8) <= 2) return incomp();
   try {

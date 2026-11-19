@@ -264,3 +264,22 @@ def test_roteiros_do_painel_e_site_emoldurado():
     for u in ("/painel", "/api/site"):
         r = p.get(u)
         assert r.headers["x-frame-options"] == "DENY" and "frame-ancestors 'none'" in r.headers["content-security-policy"]
+
+
+def test_ficha_do_google():  # T57
+    import json as J, re as R
+    c = pronto()
+    def ficha():
+        t = cliente().get("/").text
+        m = R.search(r'<script type="application/ld\+json">(.*?)</script>', t, R.S)
+        assert m and t.index(m.group(0)) < t.index("</head>")
+        return {g["@type"]: g for g in J.loads(m.group(1))["@graph"]}
+    g = ficha()
+    assert g["TravelAgency"]["telephone"] == "+55 51 99797-6191" and g["TravelAgency"]["foundingDate"] == "2000"
+    assert g["TravelAgency"]["address"]["addressLocality"] == "Santo Antônio da Patrulha" and g["WebSite"]["name"] == "Carlos Tur"
+    v = c.get("/api/painel").json()["versao"]
+    D = {"frota": [], "empresa": {"pub": {"desde": "2001", "wa": "(51) 3662-1234"}}}
+    assert c.put("/api/painel", json={"dados": D, "versao": v}, headers=h(c)).status_code == 200
+    g = ficha()
+    assert g["TravelAgency"]["telephone"] == "+55 51 3662-1234" and g["TravelAgency"]["foundingDate"] == "2001"
+    assert "<lastmod>" in cliente().get("/sitemap.xml").text
